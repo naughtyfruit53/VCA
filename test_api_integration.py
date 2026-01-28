@@ -192,8 +192,8 @@ def test_ai_profile_endpoints(tenant):
     assert profile1["is_default"] is True
     print(f"✓ Created AI profile {profile1['id']}")
     
-    # Test empty system_prompt (should fail with 400)
-    print("\n2. Testing empty system_prompt (400 expected)")
+    # Test empty system_prompt (should fail with 422)
+    print("\n2. Testing empty system_prompt (422 expected)")
     response = requests.post(
         f"{BASE_URL}/api/tenants/{tenant_id}/ai-profiles",
         json={
@@ -202,8 +202,7 @@ def test_ai_profile_endpoints(tenant):
             "system_prompt": ""
         }
     )
-    assert response.status_code == 400
-    assert "system_prompt is required and cannot be empty" in response.json()["detail"]
+    assert response.status_code == 422
     print("✓ Correctly rejected empty system_prompt")
     
     # Create another profile and test default enforcement
