@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 import sys
 
 from app.config import settings, is_config_valid
-from app.api import health_router
+from app.api import health_router, tenant_router, phone_number_router, ai_profile_router
 
 
 # Validate configuration on startup
@@ -40,6 +40,9 @@ app = FastAPI(
 
 # Register routers
 app.include_router(health_router)
+app.include_router(tenant_router, prefix="/api")
+app.include_router(phone_number_router, prefix="/api")
+app.include_router(ai_profile_router, prefix="/api")
 
 
 @app.get("/")
