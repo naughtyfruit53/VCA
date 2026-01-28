@@ -79,3 +79,54 @@ voice-ai-platform/
 │   ├── call-flow.md
 │
 └── README.md
+
+Multi-Tenancy Model
+
+Every resource is scoped by tenant_id
+
+Telephony DID → tenant_id mapping
+
+Isolated AI profiles per tenant
+
+Redis used only for live call sessions
+
+PostgreSQL is the source of truth
+
+MVP Scope (Phase 1)
+
+Inbound call answering only
+
+Single AI receptionist agent
+
+English language only
+
+Call summary via SMS / dashboard
+
+Manual tenant onboarding
+
+Non-Goals (Explicitly Out of Scope for MVP)
+
+Cold calling
+
+CRM integrations
+
+Multi-language
+
+Advanced analytics
+
+White-label UI
+
+Guiding Principles
+
+Cost efficiency > feature richness
+
+Deterministic logic > AI magic
+
+Fast response time (<1s) is critical
+
+Everything must be replaceable (STT, LLM, TTS)
+
+Status
+
+🚧 Under active development
+This README will evolve as modules are implemented.
