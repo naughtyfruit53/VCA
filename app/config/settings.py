@@ -12,7 +12,7 @@ import os
 import sys
 from typing import Optional
 from pydantic_settings import BaseSettings
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 from dotenv import load_dotenv
 
 
@@ -37,14 +37,16 @@ class Settings(BaseSettings):
     app_name: str = Field(default="VCA", env="APP_NAME")
     debug: bool = Field(default=False, env="DEBUG")
     
-    @validator("database_url")
+    @field_validator("database_url")
+    @classmethod
     def validate_database_url(cls, v):
         """Ensure database URL is not empty."""
         if not v or v.strip() == "":
             raise ValueError("DATABASE_URL cannot be empty")
         return v
     
-    @validator("app_env")
+    @field_validator("app_env")
+    @classmethod
     def validate_app_env(cls, v):
         """Ensure app environment is valid."""
         allowed_envs = ["development", "staging", "production"]

@@ -9,7 +9,7 @@ Every resource must be scoped to a specific tenant.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
@@ -72,8 +72,8 @@ class Tenant(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     status = Column(Enum(TenantStatus), nullable=False, default=TenantStatus.ACTIVE)
     plan = Column(Enum(TenantPlan), nullable=False, default=TenantPlan.STARTER)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Relationships
     phone_numbers = relationship("PhoneNumber", back_populates="tenant", cascade="all, delete-orphan")
@@ -100,8 +100,8 @@ class PhoneNumber(Base):
     did_number = Column(String(20), nullable=False, unique=True)
     provider_type = Column(String(50), nullable=False)  # Generic string, not vendor-specific
     is_active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Relationships
     tenant = relationship("Tenant", back_populates="phone_numbers")
@@ -128,7 +128,7 @@ class Call(Base):
     phone_number_id = Column(UUID(as_uuid=True), ForeignKey("phone_numbers.id", ondelete="CASCADE"), nullable=False)
     direction = Column(Enum(CallDirection), nullable=False)
     status = Column(Enum(CallStatus), nullable=False)
-    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     ended_at = Column(DateTime, nullable=True)
     
     # Relationships
@@ -159,8 +159,8 @@ class AIProfile(Base):
     role = Column(Enum(AIRole), nullable=False, default=AIRole.RECEPTIONIST)
     system_prompt = Column(Text, nullable=False)
     is_default = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Relationships
     tenant = relationship("Tenant", back_populates="ai_profiles")

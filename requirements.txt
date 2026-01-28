@@ -12,6 +12,9 @@ psycopg2-binary==2.9.9
 # Environment configuration
 python-dotenv==1.0.0
 
+# HTTP client for testing
+requests==2.31.0
+
 # Development tools
 pytest==7.4.4
 pytest-asyncio==0.23.3

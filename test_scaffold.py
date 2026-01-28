@@ -10,7 +10,6 @@ This script tests:
 
 import sys
 import requests
-from time import sleep
 
 
 def test_configuration():
@@ -58,7 +57,7 @@ def test_models():
                     tenant_id_col = col
                     break
             
-            if tenant_id_col is not None and tenant_id_col.nullable == False:
+            if tenant_id_col is not None and not tenant_id_col.nullable:
                 print(f"  - {model_name}: tenant_id is REQUIRED (nullable=False) ✓")
             else:
                 print(f"  - {model_name}: tenant_id missing or nullable! ✗")

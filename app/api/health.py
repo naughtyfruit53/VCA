@@ -4,7 +4,7 @@ Health check API endpoint.
 Provides system health status and configuration validation.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 from app.schemas import HealthCheckResponse
 from app.config import is_config_valid
 
@@ -12,12 +12,14 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/healthz", response_model=HealthCheckResponse)
-async def health_check() -> HealthCheckResponse:
+async def health_check(response: Response) -> HealthCheckResponse:
     """
     Health check endpoint.
     
     Returns the health status of the application and validates
     that all required configuration is present.
+    
+    Returns 503 Service Unavailable if configuration is invalid.
     
     Returns:
         HealthCheckResponse: Health status information
@@ -31,6 +33,7 @@ async def health_check() -> HealthCheckResponse:
             message="All systems operational"
         )
     else:
+        response.status_code = 503
         return HealthCheckResponse(
             status="unhealthy",
             config_valid=False,
