@@ -51,7 +51,7 @@ class PhoneNumberBase(BaseModel):
 
 class PhoneNumberCreate(PhoneNumberBase):
     """Schema for creating a new phone number."""
-    tenant_id: UUID
+    pass
 
 
 class PhoneNumberUpdate(BaseModel):
@@ -112,7 +112,7 @@ class AIProfileBase(BaseModel):
 
 class AIProfileCreate(AIProfileBase):
     """Schema for creating a new AI profile."""
-    tenant_id: UUID
+    pass
 
 
 class AIProfileUpdate(BaseModel):

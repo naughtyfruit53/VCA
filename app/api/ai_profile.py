@@ -46,7 +46,6 @@ async def create_ai_profile(
         
     Raises:
         HTTPException: 404 if tenant not found
-        HTTPException: 400 if system_prompt is empty or tenant_id mismatch
     """
     # Validate tenant exists
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
@@ -56,25 +55,11 @@ async def create_ai_profile(
             detail="Tenant not found"
         )
     
-    # Validate system_prompt is non-empty
-    if not profile_data.system_prompt or not profile_data.system_prompt.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="system_prompt is required and cannot be empty"
-        )
-    
-    # Ensure tenant_id in request body matches path parameter
-    if profile_data.tenant_id != tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="tenant_id in request body must match path parameter"
-        )
-    
     # If this profile is marked as default, unset all other defaults for this tenant
     if profile_data.is_default:
         db.query(AIProfile).filter(
             AIProfile.tenant_id == tenant_id,
-            AIProfile.is_default == True
+            AIProfile.is_default.is_(True)
         ).update({"is_default": False})
     
     # Create AI profile
@@ -153,7 +138,6 @@ async def update_ai_profile(
         
     Raises:
         HTTPException: 404 if profile not found or doesn't belong to tenant
-        HTTPException: 400 if system_prompt is empty
     """
     # Get AI profile and enforce tenant ownership
     profile = db.query(AIProfile).filter(
@@ -170,20 +154,12 @@ async def update_ai_profile(
     # Get update data
     update_data = profile_update.model_dump(exclude_unset=True)
     
-    # Validate system_prompt if being updated
-    if "system_prompt" in update_data:
-        if not update_data["system_prompt"] or not update_data["system_prompt"].strip():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="system_prompt is required and cannot be empty"
-            )
-    
     # If setting this as default, unset all other defaults for this tenant
-    if update_data.get("is_default") == True:
+    if update_data.get("is_default") is True:
         db.query(AIProfile).filter(
             AIProfile.tenant_id == tenant_id,
             AIProfile.id != ai_profile_id,
-            AIProfile.is_default == True
+            AIProfile.is_default.is_(True)
         ).update({"is_default": False})
     
     # Update fields

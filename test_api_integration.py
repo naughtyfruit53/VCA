@@ -84,7 +84,6 @@ def test_phone_number_endpoints(tenant):
     response = requests.post(
         f"{BASE_URL}/api/tenants/{tenant_id}/phone-numbers",
         json={
-            "tenant_id": tenant_id,
             "did_number": "+15551234567",
             "provider_type": "generic",
             "is_active": True
@@ -101,7 +100,6 @@ def test_phone_number_endpoints(tenant):
     response = requests.post(
         f"{BASE_URL}/api/tenants/{tenant_id}/phone-numbers",
         json={
-            "tenant_id": tenant_id,
             "did_number": "+15551234567",
             "provider_type": "generic"
         }
@@ -115,7 +113,6 @@ def test_phone_number_endpoints(tenant):
     response = requests.post(
         f"{BASE_URL}/api/tenants/{tenant_id}/phone-numbers",
         json={
-            "tenant_id": tenant_id,
             "did_number": "+15559876543",
             "provider_type": "twilio"
         }
@@ -128,7 +125,6 @@ def test_phone_number_endpoints(tenant):
     response = requests.post(
         f"{BASE_URL}/api/tenants/{tenant_id}/phone-numbers",
         json={
-            "tenant_id": tenant_id,
             "did_number": "+15559876543",
             "provider_type": "generic",
             "is_active": False
@@ -180,7 +176,6 @@ def test_ai_profile_endpoints(tenant):
     response = requests.post(
         f"{BASE_URL}/api/tenants/{tenant_id}/ai-profiles",
         json={
-            "tenant_id": tenant_id,
             "role": "receptionist",
             "system_prompt": "You are a helpful receptionist.",
             "is_default": True
@@ -197,7 +192,6 @@ def test_ai_profile_endpoints(tenant):
     response = requests.post(
         f"{BASE_URL}/api/tenants/{tenant_id}/ai-profiles",
         json={
-            "tenant_id": tenant_id,
             "role": "sales",
             "system_prompt": ""
         }
@@ -210,7 +204,6 @@ def test_ai_profile_endpoints(tenant):
     response = requests.post(
         f"{BASE_URL}/api/tenants/{tenant_id}/ai-profiles",
         json={
-            "tenant_id": tenant_id,
             "role": "sales",
             "system_prompt": "You are a sales expert.",
             "is_default": True

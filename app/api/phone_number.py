@@ -63,13 +63,6 @@ async def create_phone_number(
             detail="provider_type must be 'generic'"
         )
     
-    # Ensure tenant_id in request body matches path parameter
-    if phone_data.tenant_id != tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="tenant_id in request body must match path parameter"
-        )
-    
     # Create phone number
     new_phone = PhoneNumber(
         tenant_id=tenant_id,
@@ -152,6 +145,7 @@ async def update_phone_number(
         
     Raises:
         HTTPException: 404 if phone number not found or doesn't belong to tenant
+        HTTPException: 400 if provider_type is not "generic"
     """
     # Get phone number and enforce tenant ownership
     phone_number = db.query(PhoneNumber).filter(
@@ -165,8 +159,17 @@ async def update_phone_number(
             detail="Phone number not found or does not belong to tenant"
         )
     
-    # Update only provided fields
+    # Get update data
     update_data = phone_update.model_dump(exclude_unset=True)
+    
+    # Validate provider_type if being updated
+    if "provider_type" in update_data and update_data["provider_type"] != "generic":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="provider_type must be 'generic'"
+        )
+    
+    # Update fields
     for field, value in update_data.items():
         setattr(phone_number, field, value)
     
