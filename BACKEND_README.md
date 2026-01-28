@@ -74,6 +74,49 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 - `GET /healthz` - Health check endpoint (validates configuration)
 - `GET /` - Root endpoint (API information)
 
+### Tenant Management
+- `POST /api/tenants` - Create a new tenant (status=active by default)
+- `GET /api/tenants/{tenant_id}` - Get tenant details by ID
+- `PATCH /api/tenants/{tenant_id}` - Update tenant status or plan
+
+**Constraints:**
+- Only `status` and `plan` fields can be updated
+- Valid status values: `active`, `suspended`, `deleted`
+- Valid plan values: `starter`, `growth`, `custom`
+
+### Phone Number Management
+- `POST /api/tenants/{tenant_id}/phone-numbers` - Attach a phone number to a tenant
+- `GET /api/tenants/{tenant_id}/phone-numbers` - List all phone numbers for a tenant
+- `PATCH /api/tenants/{tenant_id}/phone-numbers/{phone_number_id}` - Update phone number (activate/deactivate)
+
+**Constraints:**
+- `did_number` must be globally unique across all tenants
+- `provider_type` must be set to `"generic"`
+- `tenant_id` must reference an existing tenant
+- Updates enforce tenant ownership (can only update own phone numbers)
+- Phone numbers can be activated/deactivated via `is_active` field
+
+### AI Profile Management
+- `POST /api/tenants/{tenant_id}/ai-profiles` - Create an AI profile for a tenant
+- `GET /api/tenants/{tenant_id}/ai-profiles` - List all AI profiles for a tenant
+- `PATCH /api/tenants/{tenant_id}/ai-profiles/{ai_profile_id}` - Update AI profile
+
+**Constraints:**
+- `system_prompt` is required and must be non-empty
+- Only one AI profile can have `is_default=True` per tenant
+- Setting a profile as default automatically unsets other defaults for that tenant
+- Valid role values: `receptionist`, `sales`, `support`, `dispatcher`, `custom`
+- Updates enforce tenant ownership (can only update own AI profiles)
+
+### Error Responses
+All endpoints return appropriate HTTP status codes:
+- `200 OK` - Successful GET/PATCH request
+- `201 Created` - Successful POST request
+- `400 Bad Request` - Invalid input data or validation failure
+- `404 Not Found` - Resource not found
+- `409 Conflict` - Resource already exists (e.g., duplicate phone number)
+- `500 Internal Server Error` - Server error (safe error messages, no stack traces)
+
 ### Future Endpoints (TODO)
 See `main.py` for comprehensive list of planned endpoints. All will enforce tenant isolation.
 
