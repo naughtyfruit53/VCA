@@ -55,10 +55,10 @@ class TTSService:
         - shimmer: Female, energetic
     
     Error Handling:
-        - Network errors: Retry with exponential backoff
+        - Network errors: Fail-fast (no retries for live voice)
         - API errors: Log and raise TTSServiceError
         - Empty text: Return empty audio (not an error)
-        - All failures are logged but NEVER crash the call
+        - All failures are logged and raise exception for caller to handle
     """
     
     def __init__(self):
@@ -66,12 +66,13 @@ class TTSService:
         self.client = AsyncOpenAI(api_key=settings.openai_api_key)
         self.model = settings.tts_model
         self.voice = settings.tts_voice
-        self.max_retries = 2
-        self.retry_delay = 1.0  # seconds
+        # LIVE VOICE: No retries - single-attempt fail-fast for production voice calls
+        self.max_retries = 0
+        self.retry_delay = 0  # No delays
         self.speed = 1.0  # Normal speaking speed
         
         logger.info(
-            f"TTSService initialized with model: {self.model}, voice: {self.voice}"
+            f"TTSService initialized with model: {self.model}, voice: {self.voice} (fail-fast mode)"
         )
     
     async def synthesize_speech(
@@ -100,7 +101,7 @@ class TTSService:
         
         Notes:
             - Handles empty text gracefully (returns empty bytes)
-            - Retries on transient network failures
+            - Single-attempt fail-fast (no retries for live voice calls)
             - Times out after specified duration to prevent blocking
             - All errors are logged with context for debugging
             - Returns MP3 format for efficient streaming

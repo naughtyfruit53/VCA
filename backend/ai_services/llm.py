@@ -46,22 +46,23 @@ class LLMService:
         LLM_MODEL: GPT model to use (default: gpt-4)
     
     Error Handling:
-        - Network errors: Retry with exponential backoff
+        - Network errors: Fail-fast (no retries for live voice)
         - API errors: Log and raise LLMServiceError
         - Empty input: Return fallback response
-        - All failures are logged but NEVER crash the call
+        - All failures are logged and raise exception for caller to handle
     """
     
     def __init__(self):
         """Initialize LLM service with OpenAI client."""
         self.client = AsyncOpenAI(api_key=settings.openai_api_key)
         self.model = settings.llm_model
-        self.max_retries = 2
-        self.retry_delay = 1.0  # seconds
+        # LIVE VOICE: No retries - single-attempt fail-fast for production voice calls
+        self.max_retries = 0
+        self.retry_delay = 0  # No delays
         self.max_tokens = 150  # Keep responses concise for phone calls
         self.temperature = 0.7  # Balanced creativity
         
-        logger.info(f"LLMService initialized with model: {self.model}")
+        logger.info(f"LLMService initialized with model: {self.model} (fail-fast mode)")
     
     async def generate_response(
         self,
@@ -90,7 +91,7 @@ class LLMService:
         Notes:
             - System prompt is tenant-specific from AIProfile
             - Keeps responses concise for phone conversations
-            - Retries on transient network failures
+            - Single-attempt fail-fast (no retries for live voice calls)
             - Times out after specified duration to prevent blocking
             - All errors are logged with context for debugging
         """

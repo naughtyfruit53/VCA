@@ -49,9 +49,9 @@ class Settings(BaseSettings):
     tts_model: str = Field(default="tts-1", env="TTS_MODEL")
     tts_voice: str = Field(default="alloy", env="TTS_VOICE")
     
-    # Conversation limits (OPTIONAL with defaults)
-    max_conversation_turns: int = Field(default=20, env="MAX_CONVERSATION_TURNS")
-    max_conversation_duration_seconds: int = Field(default=300, env="MAX_CONVERSATION_DURATION_SECONDS")
+    # Conversation limits (OPTIONAL with defaults) - STRICT defaults for production safety
+    max_conversation_turns: int = Field(default=5, env="MAX_CONVERSATION_TURNS")
+    max_conversation_duration_seconds: int = Field(default=75, env="MAX_CONVERSATION_DURATION_SECONDS")
     
     # ARI Configuration (REQUIRED for audio streaming)
     ari_url: str = Field(default="http://localhost:8088", env="ARI_URL")

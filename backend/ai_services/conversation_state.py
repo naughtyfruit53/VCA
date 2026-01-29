@@ -113,6 +113,8 @@ class ConversationStateManager:
                 "turn_count": 0,
                 "conversation_history": [],
                 "state": "active",
+                "silence_count": 0,  # Track consecutive silences
+                "ai_exit_reason": None,  # Track exit reason: silence, confusion, max_turns, max_duration, stt_failure, llm_failure, tts_failure, timeout
                 "metadata": {}
             }
             
@@ -286,9 +288,37 @@ class ConversationStateManager:
         
         return (False, None)
     
-    async def mark_ending(self, call_id: str) -> None:
+    async def increment_silence_count(self, call_id: str) -> int:
         """
-        Mark conversation as ending (graceful shutdown).
+        Increment silence count for exit discipline.
+        
+        Args:
+            call_id: Unique call identifier
+            
+        Returns:
+            int: New silence count
+        """
+        try:
+            redis = await get_redis_client()
+            key = self._call_key(call_id)
+            
+            state = await self.get_state(call_id)
+            if state:
+                state["silence_count"] = state.get("silence_count", 0) + 1
+                await redis.setex(key, self.state_ttl, json.dumps(state))
+                logger.info(
+                    f"[STATE] Silence count incremented: call_id={call_id}, "
+                    f"count={state['silence_count']}"
+                )
+                return state["silence_count"]
+            return 0
+        except Exception as e:
+            logger.error(f"[STATE] Failed to increment silence: {type(e).__name__}: {e}")
+            return 0
+    
+    async def reset_silence_count(self, call_id: str) -> None:
+        """
+        Reset silence count when user speaks.
         
         Args:
             call_id: Unique call identifier
@@ -299,9 +329,57 @@ class ConversationStateManager:
             
             state = await self.get_state(call_id)
             if state:
-                state["state"] = "ending"
+                state["silence_count"] = 0
                 await redis.setex(key, self.state_ttl, json.dumps(state))
-                logger.info(f"[STATE] Call marked as ending: call_id={call_id}")
+        except Exception as e:
+            logger.error(f"[STATE] Failed to reset silence: {type(e).__name__}: {e}")
+    
+    async def set_exit_reason(self, call_id: str, reason: str) -> None:
+        """
+        Set the ai_exit_reason for this call.
+        
+        Args:
+            call_id: Unique call identifier
+            reason: Exit reason (silence, confusion, max_turns, max_duration, 
+                   stt_failure, llm_failure, tts_failure, timeout)
+        """
+        try:
+            redis = await get_redis_client()
+            key = self._call_key(call_id)
+            
+            state = await self.get_state(call_id)
+            if state:
+                state["ai_exit_reason"] = reason
+                await redis.setex(key, self.state_ttl, json.dumps(state))
+                logger.info(
+                    f"[STATE] Exit reason set: call_id={call_id}, reason={reason}"
+                )
+        except Exception as e:
+            logger.error(f"[STATE] Failed to set exit reason: {type(e).__name__}: {e}")
+    
+    async def mark_ending(self, call_id: str, reason: Optional[str] = None) -> None:
+    async def mark_ending(self, call_id: str, reason: Optional[str] = None) -> None:
+        """
+        Mark conversation as ending (graceful shutdown).
+        
+        Args:
+            call_id: Unique call identifier
+            reason: Optional exit reason to set
+        """
+        try:
+            redis = await get_redis_client()
+            key = self._call_key(call_id)
+            
+            state = await self.get_state(call_id)
+            if state:
+                state["state"] = "ending"
+                if reason:
+                    state["ai_exit_reason"] = reason
+                await redis.setex(key, self.state_ttl, json.dumps(state))
+                logger.info(
+                    f"[STATE] Call marked as ending: call_id={call_id}, "
+                    f"reason={reason or 'not specified'}"
+                )
         except Exception as e:
             logger.error(f"[STATE] Failed to mark ending: {type(e).__name__}: {e}")
     

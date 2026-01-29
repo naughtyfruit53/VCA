@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 from app.config import settings
 
-# Create database engine with production-ready pooling configuration
+# Create database engine with production-ready pooling configuration for AI call infrastructure (audio streaming implementation pending)
 engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,      # Verify connections before using

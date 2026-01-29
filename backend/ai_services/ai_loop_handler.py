@@ -58,11 +58,13 @@ class AILoopHandler:
     - Never blocks the call thread
     
     Error Handling Philosophy:
-        - AI service failures: Apologize politely and retry or end call
+        - AI service failures: Fail-fast, log exit reason, end call gracefully
         - ARI failures: Log and end call gracefully
         - State failures: Best-effort, don't crash
+        - Timeout discipline: Per-step ≤1.2s, total loop ≤1.5s
+        - Exit discipline: First silence prompt once, second silence exit
         - NEVER expose technical errors to caller
-        - ALWAYS log detailed errors for debugging
+        - ALWAYS log detailed errors and exit reasons for debugging
     
     Configuration:
         All settings from app.config.settings:
@@ -80,17 +82,24 @@ class AILoopHandler:
         self.ari = ARIClient()
         self.state_mgr = ConversationStateManager()
         
-        # Fallback responses for failures
+        # Fallback responses for failures (fail-fast, no retry)
         self.error_responses = {
-            "stt_failure": "I'm sorry, I didn't quite catch that. Could you please repeat?",
-            "llm_failure": "I apologize, I'm having a slight technical difficulty. Let me try again.",
-            "tts_failure": "I'm experiencing audio issues. Please hold while I resolve this.",
+            "stt_failure": "I'm sorry, I'm having trouble hearing you. Goodbye.",
+            "llm_failure": "I apologize, I'm having technical difficulties. Goodbye.",
+            "tts_failure": "I'm experiencing audio issues. Goodbye.",
             "max_turns": "Thank you for calling. I hope I was able to help you today. Goodbye!",
             "max_duration": "I apologize, but we've reached the maximum call duration. Thank you for calling!",
-            "general_error": "I apologize for the inconvenience. Let me transfer you to a human agent."
+            "silence": "I haven't heard from you. Thank you for calling. Goodbye.",
+            "confusion": "I'm sorry, I'm unable to help with that. Goodbye.",
+            "timeout": "I apologize for the delay. Goodbye.",
+            "general_error": "I apologize for the inconvenience. Goodbye."
         }
         
-        logger.info("AILoopHandler initialized with all services")
+        # Timeout discipline (in seconds)
+        self.per_step_timeout = 1.2  # Each step must complete within 1.2s
+        self.total_loop_timeout = 1.5  # Total loop must complete within 1.5s
+        
+        logger.info("AILoopHandler initialized with all services (fail-fast mode)")
     
     async def handle_inbound_call(
         self,
@@ -252,6 +261,8 @@ class AILoopHandler:
                     logger.info(
                         f"[AI LOOP] Conversation ending: reason={reason}"
                     )
+                    # Set exit reason in state
+                    await self.state_mgr.set_exit_reason(call_id, reason)
                     # Send goodbye message
                     goodbye = self.error_responses.get(reason, "Thank you for calling. Goodbye!")
                     await self._play_response(channel_id, goodbye, call_id, "goodbye")
@@ -292,11 +303,56 @@ class AILoopHandler:
                 # Prevent tight loop
                 await asyncio.sleep(0.1)
                 
+            except STTServiceError as e:
+                # STT failure - fail-fast, set exit reason, end call
+                logger.error(f"[AI LOOP] STT failure: {type(e).__name__}: {e}")
+                await self.state_mgr.set_exit_reason(call_id, "stt_failure")
+                try:
+                    error_response = self.error_responses["stt_failure"]
+                    await self._play_response(channel_id, error_response, call_id, "error")
+                except Exception:
+                    pass
+                break
+                
+            except LLMServiceError as e:
+                # LLM failure - fail-fast, set exit reason, end call
+                logger.error(f"[AI LOOP] LLM failure: {type(e).__name__}: {e}")
+                await self.state_mgr.set_exit_reason(call_id, "llm_failure")
+                try:
+                    error_response = self.error_responses["llm_failure"]
+                    await self._play_response(channel_id, error_response, call_id, "error")
+                except Exception:
+                    pass
+                break
+                
+            except TTSServiceError as e:
+                # TTS failure - fail-fast, set exit reason, end call
+                logger.error(f"[AI LOOP] TTS failure: {type(e).__name__}: {e}")
+                await self.state_mgr.set_exit_reason(call_id, "tts_failure")
+                try:
+                    error_response = self.error_responses["tts_failure"]
+                    await self._play_response(channel_id, error_response, call_id, "error")
+                except Exception:
+                    pass
+                break
+                
+            except asyncio.TimeoutError:
+                # Timeout - fail-fast, set exit reason, end call
+                logger.error(f"[AI LOOP] Timeout exceeded")
+                await self.state_mgr.set_exit_reason(call_id, "timeout")
+                try:
+                    error_response = self.error_responses["timeout"]
+                    await self._play_response(channel_id, error_response, call_id, "error")
+                except Exception:
+                    pass
+                break
+                
             except Exception as e:
-                # Handle turn failure gracefully
+                # General error - fail-fast, set exit reason, end call
                 logger.error(
                     f"[AI LOOP] Error in conversation turn: {type(e).__name__}: {e}"
                 )
+                await self.state_mgr.set_exit_reason(call_id, "general_error")
                 # Try to apologize to caller
                 try:
                     error_response = self.error_responses["general_error"]
@@ -363,8 +419,12 @@ class AILoopHandler:
             reason: Reason for ending
         """
         try:
+            # Get state to log exit reason if available
+            state = await self.state_mgr.get_state(call_id)
+            exit_reason = state.get("ai_exit_reason") if state else None
+            
             # Mark as ending in state
-            await self.state_mgr.mark_ending(call_id)
+            await self.state_mgr.mark_ending(call_id, reason=exit_reason or reason)
             
             # Hang up call
             await self.ari.hangup_call(channel_id)
@@ -372,7 +432,10 @@ class AILoopHandler:
             # Clean up state
             await self.state_mgr.end_call(call_id)
             
-            logger.info(f"[AI LOOP] Call ended gracefully: reason={reason}")
+            logger.info(
+                f"[AI LOOP] Call ended gracefully: reason={reason}, "
+                f"ai_exit_reason={exit_reason or 'not set'}"
+            )
             
         except Exception as e:
             logger.error(f"[AI LOOP] Error during graceful end: {e}")
