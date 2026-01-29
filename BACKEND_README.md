@@ -187,6 +187,143 @@ pytest --cov=app
 - Configuration validation prevents startup with invalid config
 - No sensitive data in logs or error messages (in production)
 
+## Telephony Adapter
+
+### Overview
+The telephony adapter provides an abstract interface for integrating with various telephony providers. This design allows the VCA platform to remain provider-agnostic while supporting multiple telephony backends.
+
+### Architecture
+
+#### Design Pattern: Adapter Pattern
+The telephony subsystem uses the **Adapter Pattern** to abstract telephony provider implementations:
+
+```
+VCA Platform → TelephonyAdapter (Interface) → Concrete Adapters
+                                            ├── AsteriskAdapter (TODO)
+                                            ├── TwilioAdapter (TODO)
+                                            ├── TelnyxAdapter (TODO)
+                                            └── FakeTelephonyAdapter (dev/test only)
+```
+
+#### Location
+All telephony adapter code is located under `backend/telephony/`:
+- `adapter.py` - Abstract base class defining the adapter contract
+- `types.py` - Data structures for call metadata and events
+- `mock.py` - Fake adapter for local development and testing
+
+### Adapter Contract
+
+The `TelephonyAdapter` abstract class defines three core methods that all implementations MUST provide:
+
+#### 1. `register_number(tenant_id, phone_number_id, did_number)`
+Registers a phone number with the telephony provider to route incoming calls to the platform.
+
+**Purpose**: Configure telephony system to handle calls for a specific DID
+**Tenant Isolation**: YES - all registrations are tenant-scoped
+**Returns**: Provider-specific registration details
+
+#### 2. `unregister_number(tenant_id, phone_number_id, did_number)`
+Unregisters a phone number from the telephony provider, stopping call routing.
+
+**Purpose**: Remove call routing configuration for a DID
+**Tenant Isolation**: YES - all operations are tenant-scoped
+**Returns**: Provider-specific unregistration details
+
+#### 3. `on_inbound_call(call_metadata)`
+Handles incoming call events from the telephony provider.
+
+**Purpose**: Process new inbound calls and initialize AI conversation
+**Tenant Isolation**: YES - call metadata includes tenant_id
+**Returns**: CallEvent representing call state
+
+### Data Structures
+
+#### CallMetadata
+Represents essential call information without vendor-specific details:
+- `tenant_id` - UUID of the tenant (REQUIRED for all calls)
+- `phone_number_id` - UUID of the phone number record
+- `caller_number` - Caller's phone number
+- `called_number` - Called phone number (DID)
+- `direction` - INBOUND or OUTBOUND
+- `timestamp` - When the call occurred
+- `call_id` - External telephony system call ID (optional)
+
+#### CallEvent
+Represents a call state transition:
+- `event_type` - Type of event (INITIATED, RINGING, ANSWERED, ENDED, FAILED)
+- `call_metadata` - Associated call metadata
+- `timestamp` - When the event occurred
+- `details` - Additional event details (optional)
+
+### Implementation Status
+
+#### ✅ Completed
+- Abstract `TelephonyAdapter` interface with method signatures
+- Data structures (`CallMetadata`, `CallEvent`)
+- `FakeTelephonyAdapter` for development and testing
+
+#### ⚠️ TODO - Concrete Adapters
+All concrete telephony provider adapters are **NOT YET IMPLEMENTED**. Each will require:
+
+1. **AsteriskAdapter (SIP-based telephony)**
+   - AGI script integration
+   - SIP trunk configuration
+   - WebRTC support
+   - Call recording
+
+2. **TwilioAdapter (Twilio API)**
+   - Twilio API authentication
+   - Webhook configuration
+   - TwiML response generation
+   - Call status tracking
+
+3. **TelnyxAdapter (Telnyx API)**
+   - Telnyx API authentication
+   - Mission Control Portal configuration
+   - WebRTC integration
+   - Call control commands
+
+### Usage Guidelines
+
+#### For Development/Testing
+Use `FakeTelephonyAdapter` for local development:
+
+```python
+from backend.telephony.mock import FakeTelephonyAdapter
+
+adapter = FakeTelephonyAdapter()
+# All operations are logged but have no real side effects
+```
+
+⚠️ **WARNING**: `FakeTelephonyAdapter` is for development ONLY. It logs operations but does NOT interact with real telephony systems.
+
+#### For Production (TODO)
+Choose and implement a concrete adapter based on your telephony provider:
+
+```python
+# TODO: Import and use real adapter
+from backend.telephony.asterisk import AsteriskAdapter  # Not yet implemented
+
+adapter = AsteriskAdapter(config)
+```
+
+### Tenant Isolation
+
+**CRITICAL**: All telephony operations MUST enforce tenant isolation:
+- Every `register_number` and `unregister_number` call requires `tenant_id`
+- All `CallMetadata` objects MUST include `tenant_id`
+- Adapters MUST validate tenant ownership before operations
+- Cross-tenant access is strictly prohibited
+
+### Integration Points
+
+The telephony adapter integrates with:
+1. **Phone Number Management API** - Register/unregister numbers on create/delete
+2. **Call Handling System** - Process inbound calls via `on_inbound_call`
+3. **AI Agent System** - Route calls to appropriate AI profiles
+4. **Call Recording** - Capture and store call audio (TODO)
+5. **Call Analytics** - Track call metrics per tenant (TODO)
+
 ## TODO
 
 See `main.py` for comprehensive list of planned features:
@@ -194,7 +331,7 @@ See `main.py` for comprehensive list of planned features:
 - Phone number management
 - Call management
 - AI profile management
-- Telephony integration
+- Concrete telephony adapter implementations (Asterisk, Twilio, Telnyx)
 - AI/LLM integration
 - Analytics endpoints
 - Billing endpoints
