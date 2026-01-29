@@ -315,9 +315,44 @@ class TataTelephonyAdapter(TelephonyAdapter):
             f"Call record ID: {call_record.id}, Tenant: {tenant_id}"
         )
         
-        # TODO: Next phase - Initialize AI conversation loop
-        # TODO: This is where STT/TTS and LLM integration would begin
-        # TODO: For now, we just return INITIATED - Asterisk will handle media
+        # Step 5: Initialize AI conversation loop (non-blocking)
+        # Get default AI profile for tenant or first available
+        ai_profile = await self._get_ai_profile_for_tenant(tenant_id)
+        
+        if ai_profile:
+            logger.info(
+                f"[INBOUND CALL] Step 5: Starting AI loop with profile={ai_profile.id}"
+            )
+            
+            # Start AI loop in background task (non-blocking)
+            # TODO: This requires channel_id from ARI - currently not available in call_metadata
+            # TODO: Need to pass channel_id from Asterisk to enable AI loop
+            # For now, log the intent but don't start the loop
+            
+            logger.info(
+                f"[INBOUND CALL] AI loop integration ready but requires ARI channel_id. "
+                f"TODO: Pass channel_id from Asterisk extensions.conf to enable AI audio loop."
+            )
+            
+            # TODO: Uncomment when channel_id is available:
+            # from backend.ai_services.ai_loop_handler import AILoopHandler
+            # import asyncio
+            # 
+            # ai_handler = AILoopHandler()
+            # asyncio.create_task(
+            #     ai_handler.handle_inbound_call(
+            #         call_id=str(call_record.id),
+            #         channel_id=call_metadata.channel_id,  # Need to add this field
+            #         tenant_id=tenant_id,
+            #         ai_profile_id=ai_profile.id,
+            #         db=self.db
+            #     )
+            # )
+        else:
+            logger.warning(
+                f"[INBOUND CALL] No AI profile found for tenant={tenant_id}. "
+                f"AI loop will not start. Call will be handled by Asterisk only."
+            )
         
         return CallEvent(
             event_type=CallEventType.INITIATED,
@@ -424,6 +459,56 @@ class TataTelephonyAdapter(TelephonyAdapter):
                 f"Database error while creating Call record for tenant {tenant_id}: "
                 f"{type(e).__name__}",
                 exc_info=True  # Logs full stack trace to logs only
+            )
+            return None
+    
+    async def _get_ai_profile_for_tenant(
+        self,
+        tenant_id: UUID
+    ) -> Optional[Any]:
+        """
+        Get the AI profile for a tenant to use in conversations.
+        
+        Prefers the default profile, falls back to any available profile.
+        
+        Args:
+            tenant_id: UUID of the tenant
+            
+        Returns:
+            AIProfile record if found, None otherwise
+        """
+        try:
+            from app.models import AIProfile
+            
+            logger.debug(f"Looking up AI profile for tenant={tenant_id}")
+            
+            # Try to get default profile first
+            ai_profile = self.db.query(AIProfile).filter(
+                AIProfile.tenant_id == tenant_id,
+                AIProfile.is_default == True
+            ).first()
+            
+            if ai_profile:
+                logger.debug(f"Found default AI profile: {ai_profile.id}")
+                return ai_profile
+            
+            # Fallback to first available profile
+            ai_profile = self.db.query(AIProfile).filter(
+                AIProfile.tenant_id == tenant_id
+            ).first()
+            
+            if ai_profile:
+                logger.debug(f"Found AI profile (not default): {ai_profile.id}")
+                return ai_profile
+            
+            logger.warning(f"No AI profile found for tenant={tenant_id}")
+            return None
+            
+        except Exception as e:
+            logger.error(
+                f"Error looking up AI profile for tenant {tenant_id}: "
+                f"{type(e).__name__}",
+                exc_info=True
             )
             return None
 
