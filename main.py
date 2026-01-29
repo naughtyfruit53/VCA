@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 import sys
 
 from app.config import settings, is_config_valid
-from app.api import health_router, tenant_router, phone_number_router, ai_profile_router
+from app.api import health_router, tenant_router, phone_number_router, ai_profile_router, telephony_router
 
 
 # Validate configuration on startup
@@ -43,6 +43,9 @@ app.include_router(health_router)
 app.include_router(tenant_router, prefix="/api")
 app.include_router(phone_number_router, prefix="/api")
 app.include_router(ai_profile_router, prefix="/api")
+# Note: telephony_router is at root level (/internal/...) not /api
+# This is intentional to separate internal service endpoints from public API
+app.include_router(telephony_router)
 
 
 @app.get("/")
