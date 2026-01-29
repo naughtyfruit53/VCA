@@ -19,6 +19,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+!frontend/lib/
 
 # Virtual Environment
 venv/
@@ -51,3 +52,11 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Next.js / Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.env.local
+frontend/.vercel
