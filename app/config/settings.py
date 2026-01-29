@@ -37,6 +37,27 @@ class Settings(BaseSettings):
     app_name: str = Field(default="VCA", env="APP_NAME")
     debug: bool = Field(default=False, env="DEBUG")
     
+    # Redis Configuration (REQUIRED for AI call state)
+    redis_url: str = Field(..., env="REDIS_URL")
+    
+    # AI Service Configuration (REQUIRED for AI audio loop)
+    openai_api_key: str = Field(..., env="OPENAI_API_KEY")
+    
+    # AI Service Settings (OPTIONAL with defaults)
+    stt_model: str = Field(default="whisper-1", env="STT_MODEL")
+    llm_model: str = Field(default="gpt-4", env="LLM_MODEL")
+    tts_model: str = Field(default="tts-1", env="TTS_MODEL")
+    tts_voice: str = Field(default="alloy", env="TTS_VOICE")
+    
+    # Conversation limits (OPTIONAL with defaults)
+    max_conversation_turns: int = Field(default=20, env="MAX_CONVERSATION_TURNS")
+    max_conversation_duration_seconds: int = Field(default=300, env="MAX_CONVERSATION_DURATION_SECONDS")
+    
+    # ARI Configuration (REQUIRED for audio streaming)
+    ari_url: str = Field(default="http://localhost:8088", env="ARI_URL")
+    ari_username: str = Field(default="asterisk", env="ARI_USERNAME")
+    ari_password: str = Field(default="asterisk", env="ARI_PASSWORD")
+    
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, v):
@@ -52,6 +73,22 @@ class Settings(BaseSettings):
         allowed_envs = ["development", "staging", "production"]
         if v not in allowed_envs:
             raise ValueError(f"APP_ENV must be one of {allowed_envs}")
+        return v
+    
+    @field_validator("redis_url")
+    @classmethod
+    def validate_redis_url(cls, v):
+        """Ensure Redis URL is not empty."""
+        if not v or v.strip() == "":
+            raise ValueError("REDIS_URL cannot be empty")
+        return v
+    
+    @field_validator("openai_api_key")
+    @classmethod
+    def validate_openai_api_key(cls, v):
+        """Ensure OpenAI API key is not empty."""
+        if not v or v.strip() == "":
+            raise ValueError("OPENAI_API_KEY cannot be empty")
         return v
     
     class Config:

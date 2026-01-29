@@ -15,9 +15,14 @@ business logic must enforce tenant isolation.
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 import sys
+import logging
 
 from app.config import settings, is_config_valid
+from app.config.redis import init_redis, close_redis
 from app.api import health_router, tenant_router, phone_number_router, ai_profile_router, telephony_router
+
+
+logger = logging.getLogger(__name__)
 
 
 # Validate configuration on startup
@@ -36,6 +41,33 @@ app = FastAPI(
     version="0.1.0",
     debug=settings.debug,
 )
+
+
+# Application lifecycle events
+@app.on_event("startup")
+async def startup_event():
+    """Initialize resources on application startup."""
+    logger.info("Application starting up...")
+    try:
+        # Initialize Redis for conversation state management
+        await init_redis()
+        logger.info("Redis initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize Redis: {e}")
+        # Don't crash the app - Redis might not be needed for all endpoints
+        # But log the error prominently
+        logger.warning("Application started WITHOUT Redis - AI loop will not work!")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup resources on application shutdown."""
+    logger.info("Application shutting down...")
+    try:
+        await close_redis()
+        logger.info("Redis closed successfully")
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
 
 
 # Register routers

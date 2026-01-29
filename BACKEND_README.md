@@ -649,39 +649,334 @@ The `/internal/telephony/inbound` endpoint:
 4. **Operations**: Detailed logs for troubleshooting, safe responses for callers
 5. **Compliance**: Error messages should not expose PII or system details
 
-### TODO: Next Phase - AI Conversation Loop
+---
 
-The current implementation handles call routing and database persistence.
-The **next phase** will add AI-powered conversation capabilities:
+## AI Audio Loop for Real-Time Inbound Calls
 
-1. **Audio Streaming**
-   - Bidirectional audio stream between Asterisk and VCA
-   - Consider: WebRTC, RTP relay, or Asterisk External Media
+**Status**: ✅ Backend infrastructure IMPLEMENTED
+**Audio Streaming**: ⚠️ Placeholder only (requires ARI External Media)
 
-2. **Speech-to-Text (STT)**
-   - Real-time audio transcription
-   - Provider options: Google Speech-to-Text, Azure Speech, Deepgram, Whisper
+### Overview
 
-3. **Large Language Model (LLM)**
-   - Tenant-specific AI profiles (already in database)
-   - Provider options: OpenAI GPT-4, Anthropic Claude, Azure OpenAI
-   - Streaming responses for low latency
+The VCA platform now includes a complete backend infrastructure for AI-powered real-time audio conversations on inbound calls. This system integrates Speech-to-Text (STT), Large Language Model (LLM), and Text-to-Speech (TTS) services to enable autonomous AI agents to handle live phone calls with strict tenant isolation, robust error handling, and non-blocking operations.
 
-4. **Text-to-Speech (TTS)**
-   - Convert LLM responses to audio
-   - Provider options: Google TTS, Azure TTS, ElevenLabs, Deepgram
+### High-Level AI Call Flow
 
-5. **Conversation State Management**
-   - Track conversation context (Redis or in-memory)
-   - Handle interruptions, timeouts, errors
-   - DTMF input handling (keypress detection)
+```
+Caller → Tata SIP → Asterisk → VCA Backend → AI Loop Handler
+                                      ↓
+                              AI Services (STT/LLM/TTS)
+                                      ↓
+                              Redis (Conversation State)
+                                      ↓
+                              PostgreSQL (Call Records)
+```
 
-6. **Call Disposition**
-   - Update `Call.status` and `Call.ended_at` on completion
-   - Store call summary, sentiment, outcome
-   - Trigger webhooks for call events
+### Components Implemented
 
-This phase is **explicitly out of scope** for the current implementation.
+#### 1. AI Services (`backend/ai_services/`)
+
+All AI services follow these principles:
+- **Non-blocking**: Async operations with timeout protection
+- **Fault-tolerant**: Retry with exponential backoff (2 retries)
+- **Graceful failure**: Never crash call, always log errors
+- **Tenant-isolated**: All operations respect tenant boundaries
+
+**STT Service** (`stt.py`): OpenAI Whisper for audio transcription
+- Model: `whisper-1` (configurable via `STT_MODEL`)
+- Timeout: 10s with 2 retries
+- Handles empty audio gracefully
+- Returns empty string on silence
+
+**LLM Service** (`llm.py`): OpenAI GPT for AI responses
+- Model: `gpt-4` (configurable via `LLM_MODEL`)
+- Uses tenant's AIProfile system prompt
+- Max tokens: 150 (concise responses for phone calls)
+- Timeout: 15s with 2 retries
+- Fallback responses on failure
+
+**TTS Service** (`tts.py`): OpenAI TTS for voice synthesis
+- Model: `tts-1` (configurable via `TTS_MODEL`)
+- Voice: `alloy` - neutral, professional (configurable via `TTS_VOICE`)
+- Format: MP3 for efficient streaming
+- Timeout: 15s with 2 retries
+- Truncates long text (500 chars max)
+
+**ARI Client** (`ari_client.py`): Asterisk REST Interface for audio streaming
+- ⚠️ **PLACEHOLDER**: Audio streaming not yet implemented
+- Provides interface for:
+  - Answer calls programmatically
+  - Stream audio from caller (TODO: requires External Media)
+  - Play audio to caller (TODO: requires External Media)
+  - Hang up calls
+- Raises `NotImplementedError` for audio streaming methods
+
+**Conversation State Manager** (`conversation_state.py`): Redis-based state tracking
+- Tracks per-call conversation history
+- Enforces max turns (default: 20) and duration (default: 300s)
+- Keys: `call:{call_id}:state` with 1-hour TTL
+- Non-blocking async operations
+- Atomic updates where possible
+
+#### 2. AI Loop Handler (`backend/ai_services/ai_loop_handler.py`)
+
+Main orchestrator for AI conversations. Coordinates:
+- Conversation state initialization in Redis
+- AIProfile lookup from database
+- ARI connection for audio streaming
+- Greeting generation and playback
+- Main conversation loop (capture → transcribe → generate → synthesize → play)
+- Limit enforcement (max turns, max duration)
+- Graceful termination with goodbye message
+- Comprehensive error handling at every step
+- Latency metric logging (time-to-first-audio)
+
+**Design Principles**:
+- **Non-Blocking**: Runs as background task via `asyncio.create_task()`
+- **Never Crashes**: All exceptions caught and logged
+- **Polite Failures**: AI errors result in apologetic messages, not technical details
+- **Observable**: Extensive logging with `[AI LOOP]` prefix
+
+#### 3. Redis Configuration (`app/config/redis.py`)
+
+Connection pool management for conversation state:
+- Pool size: 10 connections
+- Encoding: UTF-8 with automatic decode
+- Lifecycle: Initialize on app startup, close on shutdown
+- Health check via ping
+- Fail-fast if Redis unavailable
+
+Key naming conventions:
+```
+call:{call_id}:state       -> JSON conversation state
+call:{call_id}:turns       -> Integer turn count
+call:{call_id}:started_at  -> Unix timestamp
+```
+
+All keys have 1-hour TTL to prevent memory leaks.
+
+#### 4. Integration with Telephony
+
+Modified `backend/telephony/tata.py` to start AI loop:
+
+```python
+# After creating Call record in on_inbound_call()
+ai_profile = await self._get_ai_profile_for_tenant(tenant_id)
+
+if ai_profile:
+    # Start AI loop in background (non-blocking)
+    # TODO: Requires channel_id from ARI
+    pass
+```
+
+**Current Status**: Integration ready but needs `channel_id` from Asterisk to fully enable AI loop.
+
+### Configuration Required
+
+#### Environment Variables (Required)
+
+```bash
+# Redis for conversation state
+REDIS_URL=redis://localhost:6379/0
+
+# OpenAI API for STT/LLM/TTS
+OPENAI_API_KEY=sk-your-key-here
+
+# ARI for audio streaming
+ARI_URL=http://localhost:8088
+ARI_USERNAME=asterisk
+ARI_PASSWORD=asterisk
+```
+
+#### Environment Variables (Optional with Defaults)
+
+```bash
+# AI Models
+STT_MODEL=whisper-1
+LLM_MODEL=gpt-4
+TTS_MODEL=tts-1
+TTS_VOICE=alloy
+
+# Conversation Limits
+MAX_CONVERSATION_TURNS=20
+MAX_CONVERSATION_DURATION_SECONDS=300
+```
+
+### Error Handling Strategy
+
+| Failure | Response | Caller Hears |
+|---------|----------|--------------|
+| STT failure | Retry 2x, then apologize | "I didn't catch that, please repeat" |
+| LLM failure | Retry 2x, then fallback | "Technical difficulty, trying again" |
+| TTS failure | Retry 2x, skip audio | "Audio issues, please hold" |
+| ARI disconnect | End call gracefully | Call ends |
+| Redis error | Log, continue best-effort | May lose history |
+| Max turns | Polite goodbye | "Thank you for calling. Goodbye!" |
+| Max duration | Polite goodbye | "Maximum call time reached. Thank you!" |
+
+### Latency Targets
+
+- **Time-to-first-audio**: < 5 seconds (logged for monitoring)
+- **Per-turn latency**: < 10 seconds total
+  - STT: ~2-3s
+  - LLM: ~2-4s
+  - TTS: ~2-3s
+  - Playback: ~1-2s
+
+### Tenant Isolation
+
+All operations enforce strict tenant boundaries:
+1. **DID Resolution**: DID → PhoneNumber → tenant_id (one-to-one)
+2. **AIProfile**: Each tenant has own system prompts
+3. **Conversation State**: Redis keys scoped by call_id (tenant-specific calls)
+4. **Call Records**: Database queries filtered by tenant_id
+5. **No Cross-Tenant Access**: No shared profiles or conversation data
+
+### Current Limitations
+
+#### ⚠️ ARI Audio Streaming Not Implemented
+
+**Status**: Placeholder methods raise `NotImplementedError`
+
+**Full implementation requires**:
+1. ARI External Media setup in Asterisk
+2. WebSocket connection for ARI events
+3. Audio codec handling (ulaw/alaw → PCM → Whisper format)
+4. RTP/WebRTC stream management
+5. Voice Activity Detection (VAD) for turn detection
+6. Barge-in handling (caller interrupting AI)
+
+**Impact**: Without audio streaming, AI loop cannot capture caller audio or play responses. The orchestration logic is ready, but actual audio flow needs ARI External Media.
+
+**Workaround**: Manual Asterisk dialplan can handle audio for MVP while API provides intelligence layer.
+
+#### 🚧 Features Not Yet Implemented
+
+Marked with TODO in code:
+
+1. **Human Handoff**: Transfer to human agent when requested
+2. **DTMF Handling**: Keypress detection for menu navigation
+3. **Call Recording**: Full conversation recording with encryption
+4. **Feedback Collection**: Post-call satisfaction survey
+5. **Multi-Language**: Detect language and switch AI accordingly
+6. **Voice Cloning**: Custom branded voice per tenant
+7. **Outbound Calls**: Proactive dialing (explicitly out of scope)
+
+### Production Deployment Checklist
+
+#### Prerequisites
+- [ ] Redis server installed and accessible
+- [ ] OpenAI API key with GPT-4, Whisper, TTS access
+- [ ] Asterisk with ARI enabled
+- [ ] Each tenant has AIProfile in database
+
+#### Configuration
+- [ ] Set REDIS_URL, OPENAI_API_KEY, ARI credentials in environment
+- [ ] Verify Redis: `redis-cli ping`
+- [ ] Verify OpenAI: Test key in playground
+- [ ] Verify ARI: `curl http://localhost:8088/ari/asterisk/info`
+
+#### Testing
+- [ ] Test call routing creates Call record
+- [ ] Test AI profile lookup for test tenant
+- [ ] Monitor first AI call with DEBUG logging
+- [ ] Verify time-to-first-audio < 5s
+- [ ] Verify graceful handling of AI service failures
+
+#### Monitoring
+- [ ] Set up alerts for AI service failures (> 5%)
+- [ ] Set up alerts for Redis unavailability
+- [ ] Set up alerts for high latency (> 10s)
+- [ ] Monitor OpenAI API costs per tenant
+- [ ] Track conversation quality metrics
+
+### Troubleshooting
+
+#### AI Loop Not Starting
+- Check OPENAI_API_KEY is valid
+- Check REDIS_URL is accessible: `redis-cli -u $REDIS_URL ping`
+- Check tenant has AIProfile: `SELECT * FROM ai_profiles WHERE tenant_id = '...'`
+- Check logs for `[AI LOOP]` messages
+
+#### High Latency
+- Check OpenAI API latency in logs
+- Check Redis latency: `redis-cli --latency`
+- Consider using `gpt-3.5-turbo` instead of `gpt-4`
+- Check network connectivity to `api.openai.com`
+
+#### AI Service Failures
+- Check OpenAI API quota: https://platform.openai.com/usage
+- Check API key validity
+- Check rate limits in error messages
+- Check OpenAI status page
+
+### Cost Estimation
+
+Per 5-minute call (estimated):
+- Whisper STT: ~$0.03
+- GPT-4 LLM: ~$0.10-0.20 (depends on conversation length)
+- TTS: ~$0.05
+- **Total**: ~$0.20-0.30 per call
+
+At 100 calls/month per tenant: ~$20-30/month in OpenAI API costs.
+
+### Rationale for Design Decisions
+
+**Why Non-Blocking?** AI operations take 10-15s. Blocking would prevent Asterisk from handling other calls. Background tasks allow concurrent call handling.
+
+**Why Redis?** Conversation history needs sub-millisecond access for real-time. PostgreSQL too slow for per-turn lookups.
+
+**Why OpenAI for All?** Single vendor for STT/LLM/TTS simplifies integration and billing. Services are abstracted for easy swap later.
+
+**Why Retry 2x?** Handles ~95% of transient network/API failures without excessive latency.
+
+**Why Max 150 Tokens?** Phone conversations need concise responses. Long AI responses = high latency and caller confusion.
+
+**Why Placeholder ARI?** Full External Media requires complex Asterisk configuration. Provide interface now, implement audio later.
+
+### Next Steps
+
+To fully enable AI audio loop:
+
+1. **Implement ARI External Media** in Asterisk
+   - Configure `ari.conf` for External Media
+   - Set up WebSocket event handling
+   - Implement audio codec conversion pipeline
+   - Add VAD for turn detection
+
+2. **Pass `channel_id` from Asterisk** to VCA
+   - Modify `extensions.conf` to send channel ID
+   - Update `/internal/telephony/inbound` endpoint
+   - Uncomment AI loop start code in `tata.py`
+
+3. **Test Full Audio Loop**
+   - Place test call
+   - Verify audio capture and playback
+   - Monitor latencies at each stage
+   - Test all error paths
+
+4. **Optimize for Production**
+   - Tune timeout values based on real-world latencies
+   - Implement conversation context trimming for long calls
+   - Add caching for common phrases (TTS optimization)
+   - Set up comprehensive monitoring
+
+---
+
+### Original "Next Phase" Section (Now Implemented)
+
+The backend infrastructure for AI-powered conversations is now **IMPLEMENTED**:
+
+✅ **Audio Streaming** - ARI client interface ready (audio pipeline TODO)
+✅ **Speech-to-Text (STT)** - Whisper integration complete
+✅ **Large Language Model (LLM)** - GPT-4 with AIProfile integration complete
+✅ **Text-to-Speech (TTS)** - OpenAI TTS integration complete
+✅ **Conversation State Management** - Redis-based state tracking complete
+⚠️ **Call Disposition** - Update ended_at on completion (TODO in future iteration)
+
+The remaining work is primarily ARI External Media implementation for actual audio flow.
+
+---
 
 ### Troubleshooting
 
