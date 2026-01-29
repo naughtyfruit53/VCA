@@ -35,18 +35,20 @@ class CallMetadata:
     This structure contains essential call information without vendor-specific details.
     All calls must be associated with a tenant.
     """
-    tenant_id: UUID
-    phone_number_id: UUID
     caller_number: str
     called_number: str
     direction: CallDirection
     timestamp: datetime
+    tenant_id: Optional[UUID] = None  # May be None initially, resolved from DID
+    phone_number_id: Optional[UUID] = None  # May be None initially, resolved from DID
     call_id: Optional[str] = None  # External telephony system call ID
     
     def __post_init__(self):
-        """Validate tenant_id is set."""
-        if not self.tenant_id:
-            raise ValueError("tenant_id is required for all calls")
+        """Validate required fields are set."""
+        if not self.caller_number:
+            raise ValueError("caller_number is required for all calls")
+        if not self.called_number:
+            raise ValueError("called_number is required for all calls")
 
 
 @dataclass
