@@ -358,7 +358,6 @@ class ConversationStateManager:
             logger.error(f"[STATE] Failed to set exit reason: {type(e).__name__}: {e}")
     
     async def mark_ending(self, call_id: str, reason: Optional[str] = None) -> None:
-    async def mark_ending(self, call_id: str, reason: Optional[str] = None) -> None:
         """
         Mark conversation as ending (graceful shutdown).
         

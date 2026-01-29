@@ -376,57 +376,50 @@ class AILoopHandler:
                     break
                     
                 except STTServiceError as e:
-                # STT failure - fail-fast, set exit reason, end call
-                logger.error(f"[AI LOOP] STT failure: {type(e).__name__}: {e}")
-                await self.state_mgr.set_exit_reason(call_id, "stt_failure")
-                try:
-                    error_response = self.error_responses["stt_failure"]
-                    await self._play_response(channel_id, error_response, call_id, "error")
-                except Exception:
+                    # STT failure - fail-fast, set exit reason, end call
+                    logger.error(f"[AI LOOP] STT failure: {type(e).__name__}: {e}")
+                    await self.state_mgr.set_exit_reason(call_id, "stt_failure")
+                    try:
+                        error_response = self.error_responses["stt_failure"]
+                        await self._play_response(channel_id, error_response, call_id, "error")
+                    except Exception:
+                        pass
                     break
                     
                 except LLMServiceError as e:
-                # LLM failure - fail-fast, set exit reason, end call
-                logger.error(f"[AI LOOP] LLM failure: {type(e).__name__}: {e}")
-                await self.state_mgr.set_exit_reason(call_id, "llm_failure")
-                try:
-                    error_response = self.error_responses["llm_failure"]
-                    await self._play_response(channel_id, error_response, call_id, "error")
-                except Exception:
+                    # LLM failure - fail-fast, set exit reason, end call
+                    logger.error(f"[AI LOOP] LLM failure: {type(e).__name__}: {e}")
+                    await self.state_mgr.set_exit_reason(call_id, "llm_failure")
+                    try:
+                        error_response = self.error_responses["llm_failure"]
+                        await self._play_response(channel_id, error_response, call_id, "error")
+                    except Exception:
+                        pass
                     break
                     
                 except TTSServiceError as e:
-                # TTS failure - fail-fast, set exit reason, end call
-                logger.error(f"[AI LOOP] TTS failure: {type(e).__name__}: {e}")
-                await self.state_mgr.set_exit_reason(call_id, "tts_failure")
-                try:
-                    error_response = self.error_responses["tts_failure"]
-                    await self._play_response(channel_id, error_response, call_id, "error")
-                except Exception:
+                    # TTS failure - fail-fast, set exit reason, end call
+                    logger.error(f"[AI LOOP] TTS failure: {type(e).__name__}: {e}")
+                    await self.state_mgr.set_exit_reason(call_id, "tts_failure")
+                    try:
+                        error_response = self.error_responses["tts_failure"]
+                        await self._play_response(channel_id, error_response, call_id, "error")
+                    except Exception:
+                        pass
                     break
                     
                 except Exception as e:
-                # Timeout - fail-fast, set exit reason, end call
-                logger.error(f"[AI LOOP] Timeout exceeded")
-                await self.state_mgr.set_exit_reason(call_id, "timeout")
-                try:
-                    error_response = self.error_responses["timeout"]
-                    await self._play_response(channel_id, error_response, call_id, "error")
-                except Exception:
-                    pass
-                break
-                
-            except Exception as e:
-                # General error - fail-fast, set exit reason, end call
-                logger.error(
-                    f"[AI LOOP] Error in conversation turn: {type(e).__name__}: {e}"
-                )
-                await self.state_mgr.set_exit_reason(call_id, "general_error")
-                # Try to apologize to caller
-                try:
-                    error_response = self.error_responses["general_error"]
-                    await self._play_response(channel_id, error_response, call_id, "error")
-                except Exception:
+                    # General error - fail-fast, set exit reason, end call
+                    logger.error(
+                        f"[AI LOOP] Error in conversation turn: {type(e).__name__}: {e}"
+                    )
+                    await self.state_mgr.set_exit_reason(call_id, "general_error")
+                    # Try to apologize to caller
+                    try:
+                        error_response = self.error_responses["general_error"]
+                        await self._play_response(channel_id, error_response, call_id, "error")
+                    except Exception:
+                        pass
                     break
                     
         except asyncio.CancelledError:
