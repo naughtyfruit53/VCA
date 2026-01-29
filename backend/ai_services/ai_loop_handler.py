@@ -301,7 +301,7 @@ class AILoopHandler:
                 try:
                     error_response = self.error_responses["general_error"]
                     await self._play_response(channel_id, error_response, call_id, "error")
-                except:
+                except Exception:
                     pass
                 # End call after error
                 break

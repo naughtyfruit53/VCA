@@ -199,9 +199,6 @@ class ARIClient:
             "ARI audio streaming not yet implemented. "
             "This requires ARI External Media setup."
         )
-        
-        # Unreachable - included for interface documentation
-        yield b""  # pragma: no cover
     
     async def play_audio_to_caller(
         self,

@@ -471,6 +471,10 @@ class TataTelephonyAdapter(TelephonyAdapter):
         
         Prefers the default profile, falls back to any available profile.
         
+        NOTE: This method is async for future compatibility but currently
+        uses synchronous database queries. In production with high concurrency,
+        consider using AsyncSession with async queries to avoid blocking the event loop.
+        
         Args:
             tenant_id: UUID of the tenant
             
@@ -485,7 +489,7 @@ class TataTelephonyAdapter(TelephonyAdapter):
             # Try to get default profile first
             ai_profile = self.db.query(AIProfile).filter(
                 AIProfile.tenant_id == tenant_id,
-                AIProfile.is_default == True
+                AIProfile.is_default
             ).first()
             
             if ai_profile:

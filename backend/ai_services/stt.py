@@ -105,24 +105,28 @@ class STTService:
                 audio_file = BytesIO(audio_data)
                 audio_file.name = "audio.wav"  # OpenAI requires a filename
                 
-                # Call OpenAI Whisper API with timeout
-                result = await asyncio.wait_for(
-                    self.client.audio.transcriptions.create(
-                        model=self.model,
-                        file=audio_file,
-                        language=language,
-                        response_format="text"
-                    ),
-                    timeout=timeout
-                )
-                
-                # Success!
-                text = result.strip() if isinstance(result, str) else ""
-                logger.info(
-                    f"[STT] Transcription successful: "
-                    f"text_length={len(text)}, attempts={attempt + 1}"
-                )
-                return text
+                try:
+                    # Call OpenAI Whisper API with timeout
+                    result = await asyncio.wait_for(
+                        self.client.audio.transcriptions.create(
+                            model=self.model,
+                            file=audio_file,
+                            language=language,
+                            response_format="text"
+                        ),
+                        timeout=timeout
+                    )
+                    
+                    # Success!
+                    text = result.strip() if isinstance(result, str) else ""
+                    logger.info(
+                        f"[STT] Transcription successful: "
+                        f"text_length={len(text)}, attempts={attempt + 1}"
+                    )
+                    return text
+                finally:
+                    # Always close the BytesIO object
+                    audio_file.close()
                 
             except asyncio.TimeoutError:
                 last_error = "Transcription timeout"

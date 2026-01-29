@@ -15,9 +15,8 @@ python-dotenv==1.0.0
 # HTTP client for testing
 requests==2.31.0
 
-# Redis for conversation state management
+# Redis for conversation state management (includes async support)
 redis==5.0.1
-aioredis==2.0.1
 
 # OpenAI for STT, LLM, TTS
 openai==1.12.0
