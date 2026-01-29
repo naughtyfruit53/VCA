@@ -797,31 +797,38 @@ LLM_MODEL=gpt-4
 TTS_MODEL=tts-1
 TTS_VOICE=alloy
 
-# Conversation Limits
-MAX_CONVERSATION_TURNS=20
-MAX_CONVERSATION_DURATION_SECONDS=300
+# Conversation Limits (STRICT defaults for production safety)
+MAX_CONVERSATION_TURNS=5
+MAX_CONVERSATION_DURATION_SECONDS=75
 ```
 
-### Error Handling Strategy
+### Error Handling Strategy (COMMIT 1 - HARDENED)
 
 | Failure | Response | Caller Hears |
 |---------|----------|--------------|
-| STT failure | Retry 2x, then apologize | "I didn't catch that, please repeat" |
-| LLM failure | Retry 2x, then fallback | "Technical difficulty, trying again" |
-| TTS failure | Retry 2x, skip audio | "Audio issues, please hold" |
+| STT failure | Fail-fast, exit call | "I'm having trouble hearing you. Goodbye." |
+| LLM failure | Fail-fast, exit call | "I'm having technical difficulties. Goodbye." |
+| TTS failure | Fail-fast, exit call | "I'm experiencing audio issues. Goodbye." |
 | ARI disconnect | End call gracefully | Call ends |
 | Redis error | Log, continue best-effort | May lose history |
-| Max turns | Polite goodbye | "Thank you for calling. Goodbye!" |
-| Max duration | Polite goodbye | "Maximum call time reached. Thank you!" |
+| First silence | Prompt once | "Are you still there?" |
+| Second silence | Exit immediately | "Thank you for calling. Goodbye." |
+| Confusion | Exit immediately | AI response + exit |
+| Max turns (5) | Polite goodbye | "Thank you for calling. Goodbye!" |
+| Max duration (75s) | Polite goodbye | "Maximum call time reached. Thank you!" |
+| Timeout (>1.5s loop) | Exit immediately | "I apologize for the delay. Goodbye." |
 
-### Latency Targets
+**Note**: No retries for STT/LLM/TTS in live voice calls. Single-attempt fail-fast for production safety.
+
+### Latency Targets (COMMIT 1 - TIMEOUT DISCIPLINE)
 
 - **Time-to-first-audio**: < 5 seconds (logged for monitoring)
-- **Per-turn latency**: < 10 seconds total
-  - STT: ~2-3s
-  - LLM: ~2-4s
-  - TTS: ~2-3s
-  - Playback: ~1-2s
+- **Per-step timeout**: ≤ 1.2 seconds (enforced)
+- **Total loop timeout**: ≤ 1.5 seconds (enforced)
+- **Per-turn latency target**: < 3 seconds total
+  - STT: < 1.2s (enforced timeout)
+  - LLM: < 1.2s (enforced timeout)
+  - TTS: < 1.2s (enforced timeout)
 
 ### Tenant Isolation
 
@@ -832,35 +839,96 @@ All operations enforce strict tenant boundaries:
 4. **Call Records**: Database queries filtered by tenant_id
 5. **No Cross-Tenant Access**: No shared profiles or conversation data
 
+### Audio Streaming Implementation
+
+#### ✅ ARI External Media Audio Streaming (PHASE 6 - IMPLEMENTED)
+
+**Status**: Production-ready AI call infrastructure with ARI External Media audio streaming
+
+**Implementation Details**:
+1. ✅ ARI External Media setup with bidirectional audio
+2. ✅ WebSocket connection for ARI events
+3. ✅ PCM 16-bit 8kHz mono audio format (telephony standard)
+4. ✅ Audio capture in 100-300ms chunks for low latency
+5. ✅ Minimal deterministic VAD for aggressive silence detection (not ML-based)
+6. ✅ Immediate response playback (no sentence buffering)
+7. ✅ Wired to existing STT/LLM/TTS/StateManager
+
+**Audio Streaming Flow**:
+```
+Caller → ARI External Media → PCM Audio Chunks (200ms)
+                ↓
+         Minimal VAD (silence detection)
+                ↓
+         Buffer (max 3s) → STT (Whisper)
+                ↓
+         Transcribed Text → LLM (GPT-4 + AIProfile)
+                ↓
+         AI Response → TTS (OpenAI TTS)
+                ↓
+         MP3 Audio → Convert to PCM → ARI External Media → Caller
+```
+
+**Behavior Limits (COMMIT 1 - HARDENED)**:
+- Default max_turns: 5 (configurable via AIProfile)
+- Default max_call_duration: 75 seconds (configurable via AIProfile)
+- Per-step timeout: ≤1.2s
+- Total loop timeout: ≤1.5s
+- Single-attempt fail-fast (no retries for STT/LLM/TTS)
+- First silence: prompt once
+- Second silence: exit immediately
+- Confusion: exit immediately
+- All timeouts/failures: log ai_exit_reason and exit
+
+**Exit Reasons Logged**:
+- `silence`: Second consecutive silence detected
+- `confusion`: AI unable to help
+- `max_turns`: Maximum conversation turns reached
+- `max_duration`: Maximum call duration reached
+- `stt_failure`: Speech-to-text service failed
+- `llm_failure`: Language model service failed
+- `tts_failure`: Text-to-speech service failed
+- `timeout`: Operation timeout exceeded
+
+**Observability**:
+- time_to_first_audio_ms: Time from call answer to first audio playback
+- Chunk timings: Per-chunk processing duration logged
+- Call exit reason: Logged with every call termination
+- Component latencies: STT, LLM, TTS durations logged
+
+**Safety Features**:
+- Exception handling on all streaming operations
+- Clean call exit on any failure
+- Never blocks or hangs call
+- All errors logged with full context
+- Fail-fast behavior prevents retry loops
+
+**Known Limitations**:
+- Requires proper Asterisk External Media configuration in ari.conf
+- RTP streaming requires network configuration
+- No barge-in detection (caller speaking over AI)
+- No advanced ML-based VAD (deterministic threshold-based)
+- No multi-codec support (PCM only)
+
 ### Current Limitations
 
-#### ⚠️ ARI Audio Streaming Not Implemented
+#### 🚧 Features Out of Scope (Marked as Explicit TODOs)
 
-**Status**: Placeholder methods raise `NotImplementedError`
+The following features are explicitly out of scope for the current implementation
+and marked as TODOs for future development:
 
-**Full implementation requires**:
-1. ARI External Media setup in Asterisk
-2. WebSocket connection for ARI events
-3. Audio codec handling (ulaw/alaw → PCM → Whisper format)
-4. RTP/WebRTC stream management
-5. Voice Activity Detection (VAD) for turn detection
-6. Barge-in handling (caller interrupting AI)
-
-**Impact**: Without audio streaming, AI loop cannot capture caller audio or play responses. The orchestration logic is ready, but actual audio flow needs ARI External Media.
-
-**Workaround**: Manual Asterisk dialplan can handle audio for MVP while API provides intelligence layer.
-
-#### 🚧 Features Not Yet Implemented
-
-Marked with TODO in code:
-
-1. **Human Handoff**: Transfer to human agent when requested
-2. **DTMF Handling**: Keypress detection for menu navigation
-3. **Call Recording**: Full conversation recording with encryption
-4. **Feedback Collection**: Post-call satisfaction survey
-5. **Multi-Language**: Detect language and switch AI accordingly
-6. **Voice Cloning**: Custom branded voice per tenant
-7. **Outbound Calls**: Proactive dialing (explicitly out of scope)
+1. **Human Handoff**: Transfer to human agent when requested (requires IVR integration)
+2. **DTMF Handling**: Keypress detection for menu navigation (requires dialplan changes)
+3. **Call Recording**: Full conversation recording with encryption (requires legal compliance layer)
+4. **Feedback Collection**: Post-call satisfaction survey (requires survey system)
+5. **Multi-Language**: Detect language and switch AI accordingly (requires language detection)
+6. **Voice Cloning**: Custom branded voice per tenant (requires voice cloning API)
+7. **Outbound Calls**: Proactive dialing (explicitly out of scope for inbound-only system)
+8. **Call Transfer**: Transfer to specific extension (requires PBX integration)
+9. **Sentiment Analysis**: Real-time caller satisfaction detection (requires ML model)
+10. **Conversation Summary**: Post-call summary generation (requires summarization model)
+11. **Barge-in Detection**: Sophisticated audio mixing for interruptions (requires advanced audio processing)
+12. **Advanced VAD**: ML-based voice activity detection (current deterministic VAD sufficient)
 
 ### Production Deployment Checklist
 
@@ -922,44 +990,73 @@ At 100 calls/month per tenant: ~$20-30/month in OpenAI API costs.
 
 ### Rationale for Design Decisions
 
-**Why Non-Blocking?** AI operations take 10-15s. Blocking would prevent Asterisk from handling other calls. Background tasks allow concurrent call handling.
+**Why Non-Blocking?** AI operations can take several seconds. Blocking would prevent Asterisk from handling other calls. Background tasks allow concurrent call handling.
 
 **Why Redis?** Conversation history needs sub-millisecond access for real-time. PostgreSQL too slow for per-turn lookups.
 
 **Why OpenAI for All?** Single vendor for STT/LLM/TTS simplifies integration and billing. Services are abstracted for easy swap later.
 
-**Why Retry 2x?** Handles ~95% of transient network/API failures without excessive latency.
+**Why No Retries?** (COMMIT 1) Live voice requires fail-fast behavior. Retries add latency and complexity. Network failures trigger clean exit with apology.
+
+**Why Strict Limits?** (COMMIT 1) max_turns=5, max_duration=75s prevent runaway costs and ensure predictable behavior. Configurable via AIProfile if needed.
+
+**Why Timeout Discipline?** (COMMIT 1) Per-step ≤1.2s, total loop ≤1.5s prevents hanging calls. Enforced timeouts ensure responsive system.
 
 **Why Max 150 Tokens?** Phone conversations need concise responses. Long AI responses = high latency and caller confusion.
 
-**Why Placeholder ARI?** Full External Media requires complex Asterisk configuration. Provide interface now, implement audio later.
+**Why External Media?** (COMMIT 2) Provides low-latency bidirectional audio streaming essential for real-time conversation.
 
-### Next Steps
+### Deployment Notes
 
-To fully enable AI audio loop:
+**ARI External Media is IMPLEMENTED** (COMMIT 2 - PHASE 6):
 
-1. **Implement ARI External Media** in Asterisk
-   - Configure `ari.conf` for External Media
-   - Set up WebSocket event handling
-   - Implement audio codec conversion pipeline
-   - Add VAD for turn detection
+The audio streaming implementation is complete and production-ready.
+Follow these deployment steps to enable the full AI call infrastructure:
 
-2. **Pass `channel_id` from Asterisk** to VCA
-   - Modify `extensions.conf` to send channel ID
-   - Update `/internal/telephony/inbound` endpoint
-   - Uncomment AI loop start code in `tata.py`
+1. **Configure Asterisk ari.conf** for External Media:
+   ```ini
+   [general]
+   enabled = yes
+   
+   [vca]
+   type=user
+   read_only=no
+   password=asterisk
+   ```
 
-3. **Test Full Audio Loop**
-   - Place test call
-   - Verify audio capture and playback
-   - Monitor latencies at each stage
-   - Test all error paths
+2. **Asterisk Dialplan** (`extensions.conf`):
+   ```ini
+   [from-tata-trunk]
+   exten => _X.,1,NoOp(Incoming call to ${EXTEN})
+   same => n,Set(DID=${EXTEN})
+   same => n,Set(CHANNEL_ID=${CHANNEL})
+   same => n,Answer()
+   same => n,ExternalMedia()
+   same => n,AGI(agi://localhost:8000/internal/telephony/inbound?did=${DID}&channel_id=${CHANNEL_ID})
+   same => n,Hangup()
+   ```
 
-4. **Optimize for Production**
-   - Tune timeout values based on real-world latencies
-   - Implement conversation context trimming for long calls
-   - Add caching for common phrases (TTS optimization)
-   - Set up comprehensive monitoring
+3. **Network Configuration**:
+   - Ensure RTP ports are open (typically 10000-20000)
+   - Configure firewall rules for bidirectional RTP traffic
+   - VCA application must be accessible from Asterisk server
+
+4. **Test Deployment**:
+   - Place test call through configured DID
+   - Monitor logs for `[AI LOOP]` and `[ARI]` prefixed messages
+   - Verify time_to_first_audio < 5s
+   - Test all exit paths (silence, confusion, max_turns, timeout, failures)
+
+**Production Monitoring**:
+- Monitor ai_exit_reason distribution
+- Alert on timeout rate > 5%
+- Alert on failure rate (stt/llm/tts) > 2%
+- Track average call duration vs. max_duration limit
+- Monitor OpenAI API costs per tenant
+
+---
+
+### Implementation Status (COMMITS 1 & 2 COMPLETE)
 
 ---
 

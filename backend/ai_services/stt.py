@@ -44,20 +44,21 @@ class STTService:
         STT_MODEL: Whisper model to use (default: whisper-1)
     
     Error Handling:
-        - Network errors: Retry with exponential backoff
+        - Network errors: Fail-fast (no retries for live voice)
         - API errors: Log and raise STTServiceError
         - Empty audio: Return empty string (not an error)
-        - All failures are logged but NEVER crash the call
+        - All failures are logged and raise exception for caller to handle
     """
     
     def __init__(self):
         """Initialize STT service with OpenAI client."""
         self.client = AsyncOpenAI(api_key=settings.openai_api_key)
         self.model = settings.stt_model
-        self.max_retries = 2
-        self.retry_delay = 1.0  # seconds
+        # LIVE VOICE: No retries - single-attempt fail-fast for production voice calls
+        self.max_retries = 0
+        self.retry_delay = 0  # No delays
         
-        logger.info(f"STTService initialized with model: {self.model}")
+        logger.info(f"STTService initialized with model: {self.model} (fail-fast mode)")
     
     async def transcribe_audio(
         self,
@@ -83,7 +84,7 @@ class STTService:
         
         Notes:
             - Handles empty audio gracefully (returns empty string)
-            - Retries on transient network failures
+            - Single-attempt fail-fast (no retries for live voice calls)
             - Times out after specified duration to prevent blocking
             - All errors are logged with context for debugging
         """
