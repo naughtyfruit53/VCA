@@ -405,7 +405,7 @@ class TataTelephonyAdapter(TelephonyAdapter):
                 tenant_id=tenant_id,
                 phone_number_id=phone_number_id,
                 direction=DBCallDirection.INBOUND,
-                status=DBCallStatus.COMPLETED,  # Initial status
+                status=DBCallStatus.COMPLETED,  # TODO: Add INITIATED/IN_PROGRESS status to enum
                 started_at=datetime.now(timezone.utc),
                 ended_at=None  # Will be updated when call ends
             )

@@ -232,10 +232,10 @@ async def handle_inbound_call(
             f"[INBOUND WEBHOOK] Failed to initialize adapter: {type(e).__name__}",
             exc_info=True
         )
-        # Production-safe error response (no stack trace)
-        return InboundCallResponse(
-            status="error",
-            message="Internal server error during adapter initialization"
+        # Return HTTP 500 for server errors
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during adapter initialization"
         )
     
     # Step 4: Process the inbound call
@@ -249,10 +249,10 @@ async def handle_inbound_call(
             f"{type(e).__name__}",
             exc_info=True
         )
-        # Production-safe error response
-        return InboundCallResponse(
-            status="error",
-            message="Internal server error during call processing"
+        # Return HTTP 500 for server errors
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during call processing"
         )
     
     # Step 5: Handle the result from adapter
@@ -262,6 +262,8 @@ async def handle_inbound_call(
     
     if call_event.event_type == "failed":
         # Call processing failed (DID not found, inactive, or DB error)
+        # These are business logic failures, not server errors
+        # Return 200 OK with error status for webhook acknowledgment
         logger.warning(
             f"[INBOUND WEBHOOK] Call processing failed: {call_event.details}"
         )

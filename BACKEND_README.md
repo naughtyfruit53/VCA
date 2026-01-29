@@ -569,7 +569,7 @@ The `/internal/telephony/inbound` endpoint:
 - [ ] Replace placeholder credentials in `pjsip.conf` with real Tata credentials
 - [ ] Update Tata SIP server IPs in `[tata-identify]` section
 - [ ] Copy configs to `/etc/asterisk/` (outside git repo)
-- [ ] Set permissions: `chmod 600 /etc/asterisk/pjsip.conf`
+- [ ] Set ownership and permissions: `chown asterisk:asterisk /etc/asterisk/pjsip.conf && chmod 600 /etc/asterisk/pjsip.conf`
 - [ ] Verify codec settings with Tata (ulaw, alaw, g729)
 - [ ] Test SIP trunk connectivity with `asterisk -rx "pjsip show endpoints"`
 - [ ] Configure firewall rules for SIP (5060) and RTP (10000-20000)

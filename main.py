@@ -43,6 +43,8 @@ app.include_router(health_router)
 app.include_router(tenant_router, prefix="/api")
 app.include_router(phone_number_router, prefix="/api")
 app.include_router(ai_profile_router, prefix="/api")
+# Note: telephony_router is at root level (/internal/...) not /api
+# This is intentional to separate internal service endpoints from public API
 app.include_router(telephony_router)
 
 
