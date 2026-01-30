@@ -39,7 +39,8 @@ async def create_tenant(
     # Create new tenant
     new_tenant = Tenant(
         status=tenant_data.status,
-        plan=tenant_data.plan
+        plan=tenant_data.plan,
+        primary_language=tenant_data.primary_language
     )
     
     db.add(new_tenant)
