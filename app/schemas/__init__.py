@@ -6,11 +6,11 @@ All schemas respect tenant isolation boundaries.
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict
 from uuid import UUID
 from pydantic import BaseModel, Field
 
-from app.models import TenantStatus, TenantPlan, CallDirection, CallStatus, AIRole
+from app.models import TenantStatus, TenantPlan, CallDirection, CallStatus, AIRole, PrimaryLanguage
 
 
 # Tenant Schemas
@@ -18,6 +18,7 @@ class TenantBase(BaseModel):
     """Base tenant schema."""
     status: TenantStatus = Field(default=TenantStatus.ACTIVE)
     plan: TenantPlan = Field(default=TenantPlan.STARTER)
+    primary_language: PrimaryLanguage = Field(default=PrimaryLanguage.EN)
 
 
 class TenantCreate(TenantBase):
@@ -29,6 +30,7 @@ class TenantUpdate(BaseModel):
     """Schema for updating a tenant."""
     status: Optional[TenantStatus] = None
     plan: Optional[TenantPlan] = None
+    primary_language: Optional[PrimaryLanguage] = None
 
 
 class TenantResponse(TenantBase):
@@ -139,6 +141,89 @@ class HealthCheckResponse(BaseModel):
     status: str = Field(..., description="Overall health status")
     config_valid: bool = Field(..., description="Whether configuration is valid")
     message: Optional[str] = Field(None, description="Additional information")
+
+
+# BusinessProfile Schemas
+class BusinessProfileBase(BaseModel):
+    """Base business profile schema."""
+    business_name: str = Field(..., min_length=1, max_length=255)
+    business_type: str = Field(..., min_length=1, max_length=100)
+    services: List[str] = Field(default_factory=list)
+    service_areas: List[str] = Field(default_factory=list)
+    business_hours: Dict[str, str] = Field(default_factory=dict)
+    booking_enabled: bool = Field(default=False)
+    escalation_rules: Dict[str, str] = Field(default_factory=dict)
+    forbidden_statements: List[str] = Field(default_factory=list)
+
+
+class BusinessProfileCreate(BusinessProfileBase):
+    """Schema for creating a business profile."""
+    pass
+
+
+class BusinessProfileUpdate(BaseModel):
+    """Schema for updating a business profile."""
+    business_name: Optional[str] = Field(None, min_length=1, max_length=255)
+    business_type: Optional[str] = Field(None, min_length=1, max_length=100)
+    services: Optional[List[str]] = None
+    service_areas: Optional[List[str]] = None
+    business_hours: Optional[Dict[str, str]] = None
+    booking_enabled: Optional[bool] = None
+    escalation_rules: Optional[Dict[str, str]] = None
+    forbidden_statements: Optional[List[str]] = None
+
+
+class BusinessProfileResponse(BusinessProfileBase):
+    """Schema for business profile response."""
+    id: UUID
+    tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# Agent Config Schemas (combines primary_language and business profile)
+class AgentConfigResponse(BaseModel):
+    """Schema for agent configuration response."""
+    tenant_id: UUID
+    primary_language: PrimaryLanguage
+    business_profile: Optional[BusinessProfileResponse] = None
+
+
+class AgentConfigUpdate(BaseModel):
+    """Schema for updating agent configuration."""
+    primary_language: Optional[PrimaryLanguage] = None
+    business_profile: Optional[BusinessProfileUpdate] = None
+
+
+# Sandbox Simulation Schemas
+class SandboxSimulateRequest(BaseModel):
+    """
+    Schema for sandbox simulation request.
+    
+    This endpoint simulates agent responses without real LLM calls.
+    All responses are clearly marked as MOCK/SIMULATED.
+    """
+    tenant_id: UUID = Field(..., description="Tenant ID for configuration lookup")
+    user_text: str = Field(..., min_length=1, description="User input text")
+    session_id: Optional[str] = Field(None, description="Optional session ID (auto-generated if not provided)")
+
+
+class SandboxSimulateResponse(BaseModel):
+    """
+    Schema for sandbox simulation response.
+    
+    IMPORTANT: This response is SIMULATED/MOCK. No real AI inference is performed.
+    """
+    session_id: str = Field(..., description="Session ID for this conversation")
+    detected_language: str = Field(..., description="Detected language code (SIMULATED)")
+    speaking_language: str = Field(..., description="Agent speaking language for this session")
+    simulated_response: str = Field(
+        ...,
+        description="MOCK response - This is a simulated response based on assembled prompt. No AI inference performed."
+    )
 
 
 # TODO: Future schemas to be added (all must respect tenant_id boundaries):

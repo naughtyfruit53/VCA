@@ -14,7 +14,7 @@ from enum import Enum as PyEnum
 
 from sqlalchemy import (
     Column, String, Boolean, DateTime, Text, ForeignKey, 
-    Enum, UniqueConstraint, Index
+    Enum, UniqueConstraint, Index, JSON
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -35,6 +35,14 @@ class TenantPlan(str, PyEnum):
     STARTER = "starter"
     GROWTH = "growth"
     CUSTOM = "custom"
+
+
+class PrimaryLanguage(str, PyEnum):
+    """Primary language for tenant."""
+    EN = "en"
+    HI = "hi"
+    MR = "mr"
+    GU = "gu"
 
 
 class CallDirection(str, PyEnum):
@@ -72,6 +80,7 @@ class Tenant(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     status = Column(Enum(TenantStatus), nullable=False, default=TenantStatus.ACTIVE)
     plan = Column(Enum(TenantPlan), nullable=False, default=TenantPlan.STARTER)
+    primary_language = Column(Enum(PrimaryLanguage), nullable=False, default=PrimaryLanguage.EN)
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
@@ -79,6 +88,7 @@ class Tenant(Base):
     phone_numbers = relationship("PhoneNumber", back_populates="tenant", cascade="all, delete-orphan")
     calls = relationship("Call", back_populates="tenant", cascade="all, delete-orphan")
     ai_profiles = relationship("AIProfile", back_populates="tenant", cascade="all, delete-orphan")
+    business_profile = relationship("BusinessProfile", back_populates="tenant", uselist=False, cascade="all, delete-orphan")
     
     # Indexes
     __table_args__ = (
@@ -170,6 +180,52 @@ class AIProfile(Base):
         Index("idx_ai_profile_tenant_id", "tenant_id"),
         Index("idx_ai_profile_role", "role"),
         Index("idx_ai_profile_is_default", "is_default"),
+    )
+
+
+class BusinessProfile(Base):
+    """
+    BusinessProfile model - Business information and configuration per tenant.
+    
+    STRICT TENANT ISOLATION: Each business profile belongs to exactly one tenant.
+    One-to-one relationship with Tenant.
+    
+    This model stores business-specific information used for Agent Brain v1 APIs:
+    - Business identity (name, type)
+    - Service catalog (services offered, service areas)
+    - Operating parameters (business hours, booking settings)
+    - Agent behavior rules (escalation rules, forbidden statements)
+    """
+    __tablename__ = "business_profiles"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, unique=True)
+    
+    # Business identity
+    business_name = Column(String(255), nullable=False)
+    business_type = Column(String(100), nullable=False)
+    
+    # Service catalog - stored as JSON arrays
+    services = Column(JSON, nullable=False, default=list)  # List of service names
+    service_areas = Column(JSON, nullable=False, default=list)  # List of geographic areas
+    
+    # Operating parameters - stored as JSON
+    business_hours = Column(JSON, nullable=False, default=dict)  # e.g., {"monday": "9-5", "tuesday": "9-5"}
+    booking_enabled = Column(Boolean, nullable=False, default=False)
+    
+    # Agent behavior rules - stored as JSON
+    escalation_rules = Column(JSON, nullable=False, default=dict)  # Rules for escalating conversations
+    forbidden_statements = Column(JSON, nullable=False, default=list)  # Statements the agent should never make
+    
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # Relationships
+    tenant = relationship("Tenant", back_populates="business_profile")
+    
+    # Indexes
+    __table_args__ = (
+        Index("idx_business_profile_tenant_id", "tenant_id"),
     )
 
 
