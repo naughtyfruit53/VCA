@@ -8,7 +8,7 @@ The service simulates language detection with confidence scores and implements
 session-based detection logic with fallback to primary_language.
 """
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import random
 
 # Confidence threshold for language detection
@@ -30,14 +30,14 @@ class LanguageDetectionService:
     
     def __init__(self):
         """Initialize the simulated language detection service."""
-        self._session_cache: Dict[str, Dict[str, any]] = {}
+        self._session_cache: Dict[str, Dict[str, Any]] = {}
     
     def detect_language(
         self,
         text: str,
         session_id: str,
         primary_language: str = "en"
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         Detect language from text (SIMULATED).
         

@@ -8,7 +8,7 @@ The service simulates detection of explicit language change requests and manages
 session-specific speaking_language (locked after change).
 """
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 
 class LanguageSwitchDetector:
@@ -34,7 +34,7 @@ class LanguageSwitchDetector:
         text: str,
         session_id: str,
         current_language: str
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         Detect explicit language change request (SIMULATED).
         

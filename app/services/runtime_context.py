@@ -10,7 +10,7 @@ The service builds runtime context from:
 - Business profile configuration
 """
 
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 
 
 class RuntimeContextBuilder:
@@ -33,7 +33,7 @@ class RuntimeContextBuilder:
     
     def build_context(
         self,
-        business_profile: Optional[Dict[str, any]],
+        business_profile: Optional[Dict[str, Any]],
         speaking_language: str = "en",
         user_text: Optional[str] = None
     ) -> str:
@@ -146,7 +146,7 @@ class RuntimeContextBuilder:
         }
         return templates.get(language, templates["en"])
     
-    def _format_business_profile(self, profile: Dict[str, any]) -> str:
+    def _format_business_profile(self, profile: Dict[str, Any]) -> str:
         """
         Format business profile information into text.
         

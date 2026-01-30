@@ -206,16 +206,16 @@ class BusinessProfile(Base):
     business_type = Column(String(100), nullable=False)
     
     # Service catalog - stored as JSON arrays
-    services = Column(JSON, nullable=False, default=list)  # List of service names
-    service_areas = Column(JSON, nullable=False, default=list)  # List of geographic areas
+    services = Column(JSON, nullable=False, default=lambda: [])  # List of service names
+    service_areas = Column(JSON, nullable=False, default=lambda: [])  # List of geographic areas
     
     # Operating parameters - stored as JSON
-    business_hours = Column(JSON, nullable=False, default=dict)  # e.g., {"monday": "9-5", "tuesday": "9-5"}
+    business_hours = Column(JSON, nullable=False, default=lambda: {})  # e.g., {"monday": "9-5", "tuesday": "9-5"}
     booking_enabled = Column(Boolean, nullable=False, default=False)
     
     # Agent behavior rules - stored as JSON
-    escalation_rules = Column(JSON, nullable=False, default=dict)  # Rules for escalating conversations
-    forbidden_statements = Column(JSON, nullable=False, default=list)  # Statements the agent should never make
+    escalation_rules = Column(JSON, nullable=False, default=lambda: {})  # Rules for escalating conversations
+    forbidden_statements = Column(JSON, nullable=False, default=lambda: [])  # Statements the agent should never make
     
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
