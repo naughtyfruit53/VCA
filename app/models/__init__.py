@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
-    Column, String, Boolean, DateTime, Text, ForeignKey, 
+    Column, String, Boolean, DateTime, Text, ForeignKey, Integer,
     Enum, UniqueConstraint, Index, JSON
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -229,10 +229,85 @@ class BusinessProfile(Base):
     )
 
 
+class CallSummary(Base):
+    """
+    CallSummary model - Structured call summary generated after call ends.
+    
+    STRICT TENANT ISOLATION: Each call summary belongs to exactly one tenant.
+    
+    Phase 6 Implementation:
+    - Generated after call ends
+    - Always tenant_id scoped
+    - Stores structured summary data (not raw transcripts)
+    - Used for notifications and dashboard display
+    """
+    __tablename__ = "call_summaries"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    call_id = Column(UUID(as_uuid=True), ForeignKey("calls.id", ondelete="CASCADE"), nullable=False, unique=True)
+    
+    # Summary content
+    summary_text = Column(Text, nullable=False)
+    caller_intent = Column(String(255), nullable=True)
+    resolution_status = Column(String(100), nullable=True)  # e.g., "resolved", "needs_callback", "transferred"
+    
+    # Metadata
+    call_duration_seconds = Column(Integer, nullable=True)
+    ai_turns_count = Column(Integer, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    
+    # Indexes
+    __table_args__ = (
+        Index("idx_call_summary_tenant_id", "tenant_id"),
+        Index("idx_call_summary_call_id", "call_id"),
+        Index("idx_call_summary_created_at", "created_at"),
+    )
+
+
+
+
+class NotificationLog(Base):
+    """
+    NotificationLog model - Log of notifications sent for Phase 6.
+    
+    STRICT TENANT ISOLATION: Each notification log belongs to exactly one tenant.
+    
+    Phase 6 Implementation:
+    - Tracks notification attempts (WhatsApp, Email)
+    - Records success/failure status
+    - Maximum one notification per call
+    - Notification failures must not interrupt call flow
+    """
+    __tablename__ = "notification_logs"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    call_id = Column(UUID(as_uuid=True), ForeignKey("calls.id", ondelete="CASCADE"), nullable=False)
+    call_summary_id = Column(UUID(as_uuid=True), ForeignKey("call_summaries.id", ondelete="SET NULL"), nullable=True)
+    
+    # Notification details
+    notification_type = Column(String(50), nullable=False)  # "whatsapp", "email"
+    recipient = Column(String(255), nullable=False)  # Phone number or email
+    status = Column(String(50), nullable=False)  # "sent", "failed", "pending"
+    error_message = Column(Text, nullable=True)
+    
+    # Timestamps
+    sent_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    
+    # Indexes
+    __table_args__ = (
+        Index("idx_notification_log_tenant_id", "tenant_id"),
+        Index("idx_notification_log_call_id", "call_id"),
+        Index("idx_notification_log_status", "status"),
+    )
+
+
 # TODO: Future models to be added (all must have tenant_id):
 # TODO: - CallRecording (tenant_id, call_id, recording_url, duration)
 # TODO: - CallTranscript (tenant_id, call_id, transcript_text, language)
-# TODO: - CallSummary (tenant_id, call_id, summary_text, sentiment)
 # TODO: - TenantBilling (tenant_id, period_start, period_end, amount, status)
 # TODO: - TenantUsage (tenant_id, metric_type, value, recorded_at)
 # TODO: - WebhookEndpoint (tenant_id, url, event_types, is_active)

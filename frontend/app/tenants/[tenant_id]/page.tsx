@@ -15,6 +15,8 @@ import {
   type PhoneNumberCreate,
   type AIProfileCreate,
 } from '@/lib/api';
+import SandboxTester from '@/components/SandboxTester';
+import GoLiveToggle from '@/components/GoLiveToggle';
 
 export default function TenantDetailPage() {
   const params = useParams();
@@ -334,6 +336,12 @@ export default function TenantDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Go Live Toggle - Phase 7 */}
+        <GoLiveToggle tenantId={tenantId} isAdmin={true} initialStatus={false} />
+
+        {/* Sandbox Tester - Phase 7 */}
+        <SandboxTester tenantId={tenantId} />
       </div>
     </div>
   );
