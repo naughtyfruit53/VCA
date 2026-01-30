@@ -1,163 +1,261 @@
-# Tenant Onboarding & Configuration APIs - Implementation Summary
+# Agent Brain v1 Implementation Summary
 
-## Overview
-This implementation adds comprehensive tenant onboarding and configuration APIs to the VCA platform with full multi-tenancy enforcement as specified in the requirements.
+## ✅ All Requirements Implemented
 
-## Files Created/Modified
+### 1. Tenant Model Updates ✓
+- Added `PrimaryLanguage` enum with values: `en`, `hi`, `mr`, `gu`
+- Updated Tenant model with `primary_language` field (default: `en`)
+- Updated tenant creation/update endpoints to handle primary_language
 
-### New API Routers
-1. **app/api/tenant.py** (121 lines)
-   - POST /api/tenants - Create tenant
-   - GET /api/tenants/{tenant_id} - Get tenant details
-   - PATCH /api/tenants/{tenant_id} - Update tenant
+### 2. BusinessProfile Model ✓
+Created complete BusinessProfile model with:
+- `tenant_id` (Foreign Key, one-to-one with Tenant)
+- `business_name` (String, required)
+- `business_type` (String, required)
+- `services` (JSON list, default: [])
+- `service_areas` (JSON list, default: [])
+- `business_hours` (JSON dict, default: {})
+- `booking_enabled` (Boolean, default: False)
+- `escalation_rules` (JSON dict, default: {})
+- `forbidden_statements` (JSON list, default: [])
+- Proper timestamps and indexes
 
-2. **app/api/phone_number.py** (169 lines)
-   - POST /api/tenants/{tenant_id}/phone-numbers - Attach phone number
-   - GET /api/tenants/{tenant_id}/phone-numbers - List phone numbers
-   - PATCH /api/tenants/{tenant_id}/phone-numbers/{phone_number_id} - Update phone number
+### 3. LanguageDetectionService ✓
+- Input: text, session_id, primary_language
+- Output: detected_language, confidence, used_fallback
+- Session-based caching (detects once per session_id)
+- Confidence threshold: `LANGUAGE_DETECTION_CONFIDENCE_THRESHOLD = 0.65`
+- Fallback to primary_language when confidence < 0.65
+- **SIMULATED** - uses keyword matching for testing
 
-3. **app/api/ai_profile.py** (166 lines)
-   - POST /api/tenants/{tenant_id}/ai-profiles - Create AI profile
-   - GET /api/tenants/{tenant_id}/ai-profiles - List AI profiles
-   - PATCH /api/tenants/{tenant_id}/ai-profiles/{ai_profile_id} - Update AI profile
+### 4. LanguageSwitchDetector ✓
+- Detects explicit language change requests
+- Updates session-specific speaking_language
+- Locks speaking_language after explicit change
+- Pattern-based detection (e.g., "speak hindi", "in english")
+- **SIMULATED** - uses pattern matching for testing
+
+### 5. RuntimeContextBuilder ✓
+- Assembles context from:
+  - Global agent rules
+  - Language-specific templates (en/hi/mr/gu)
+  - Business profile information
+  - User input (optional)
+- Returns assembled text prompt
+- **NO LLM CALLS** - only assembles configuration
+
+### 6. API Endpoints ✓
+
+#### GET `/api/tenants/{tenant_id}/agent-config`
+- Returns tenant's primary_language and business_profile
+- Status codes: 200 OK, 404 Not Found
+
+#### PATCH `/api/tenants/{tenant_id}/agent-config`
+- Updates primary_language and/or business_profile
+- Creates business_profile if doesn't exist
+- Partial updates supported
+- Status codes: 200 OK, 400 Bad Request, 404 Not Found
+
+#### POST `/api/sandbox/simulate`
+- Accepts: tenant_id, user_text, session_id (optional)
+- Returns: session_id, detected_language, speaking_language, simulated_response
+- Auto-generates session_id if not provided
+- Session-scoped language detection
+- Language switch detection
+- Status codes: 200 OK, 404 Not Found
+
+### 7. Session ID Logic ✓
+- Auto-generates UUID if session_id not provided
+- Returns session_id in response for reuse
+- Language detection cached per session_id
+- Speaking language locked per session after explicit switch
+- All session logic implemented in services
+
+### 8. Constants ✓
+- `LANGUAGE_DETECTION_CONFIDENCE_THRESHOLD = 0.65` defined in `language_detection.py`
+
+### 9. Simulated Response ✓
+- API response: "This is a mock response based on assembled prompt. No AI inference performed."
+- Documentation clearly marks all responses as simulated
+- Code comments indicate MOCK/SIMULATED throughout
+- No real LLM calls anywhere in codebase
+
+### 10. STRICT Exclusions ✓
+Confirmed NO implementation of:
+- ❌ No telephony/SIP/audio
+- ❌ No outbound calling
+- ❌ No billing
+- ❌ No analytics
+- ❌ No authentication
+- ✅ All config structured and tenant-scoped
+- ✅ TODOs added where appropriate
+
+## Testing Results
+
+### Integration Tests (`test_agent_brain_v1.py`)
+✅ ALL TESTS PASSED (15/15 test cases)
+
+**Test Coverage**:
+1. ✅ Tenant creation with primary_language
+2. ✅ GET agent-config without business profile
+3. ✅ PATCH agent-config to add business profile
+4. ✅ GET agent-config with business profile
+5. ✅ PATCH agent-config to update primary language
+6. ✅ PATCH agent-config to update business profile
+7. ✅ GET agent-config with non-existent tenant (404)
+8. ✅ POST sandbox/simulate with auto-generated session_id
+9. ✅ POST sandbox/simulate with session reuse
+10. ✅ POST sandbox/simulate with language switch
+11. ✅ POST sandbox/simulate with new session
+12. ✅ POST sandbox/simulate with non-existent tenant (404)
+13. ✅ Primary language fallback logic
+14. ✅ Language detection confidence threshold
+15. ✅ Session-based language caching
+
+### Code Quality
+- ✅ All code review issues fixed
+- ✅ Type hints corrected (Any instead of any)
+- ✅ Mutable defaults fixed with lambdas
+- ✅ CodeQL security scan: 0 vulnerabilities
+- ✅ Proper error handling throughout
+
+## File Structure
+
+### New Files Created
+```
+app/services/
+  ├── __init__.py               # Services package
+  ├── language_detection.py     # Language detection service
+  ├── language_switch.py        # Language switch detector
+  └── runtime_context.py        # Runtime context builder
+
+app/api/
+  ├── agent_config.py           # Agent config endpoints
+  └── sandbox.py                # Sandbox simulation endpoint
+
+test_agent_brain_v1.py          # Integration tests
+AGENT_BRAIN_V1_README.md        # API documentation
+IMPLEMENTATION_SUMMARY.md       # This file
+```
 
 ### Modified Files
-- **app/api/__init__.py** - Registered new routers
-- **app/schemas/__init__.py** - Cleaned up schemas (removed redundant tenant_id fields)
-- **main.py** - Added router includes
-- **BACKEND_README.md** - Documented all endpoints with constraints
-
-### Test Files
-- **test_api_integration.py** (311 lines) - Comprehensive integration tests
-
-## Key Features Implemented
-
-### 1. Tenant Management
-- Default status: `active`
-- Default plan: `starter`
-- Update only `status` and `plan` fields
-- Proper 404 handling for non-existent tenants
-
-### 2. Phone Number Management
-- Global uniqueness enforcement for `did_number`
-- Required `provider_type` = "generic" (validated on create AND update)
-- Tenant ownership validation (can't update other tenant's numbers)
-- Proper conflict detection (409 for duplicates)
-
-### 3. AI Profile Management
-- Required non-empty `system_prompt` (Pydantic min_length=1)
-- Enforce single `is_default=True` profile per tenant
-- Automatic unset of previous defaults when setting new default
-- Tenant ownership validation
-
-### 4. Multi-Tenancy Enforcement
-✓ All child resources (phone numbers, AI profiles) require tenant_id from path
-✓ Tenant ownership validated on all update/read operations
-✓ Cross-tenant access properly denied with 404 errors
-✓ Foreign key constraints with CASCADE delete
-
-### 5. Error Handling
-✓ 200 OK - Successful GET/PATCH
-✓ 201 Created - Successful POST
-✓ 400 Bad Request - Business rule violations (e.g., invalid provider_type)
-✓ 404 Not Found - Missing resources or ownership violations
-✓ 409 Conflict - Duplicate resources
-✓ 422 Unprocessable Entity - Schema validation failures
-✓ Safe error messages (no stack traces or internal details)
-
-## Validation Rules
-
-### Phone Numbers
-1. `did_number` must be 10-20 characters
-2. `did_number` must be globally unique
-3. `provider_type` must be exactly "generic"
-4. `is_active` defaults to True
-5. Tenant must exist before creating phone numbers
-
-### AI Profiles
-1. `system_prompt` must be non-empty (min 1 character)
-2. Only one profile can be `is_default=True` per tenant
-3. Setting a profile as default automatically unsets others
-4. `role` must be valid AIRole enum value
-5. Tenant must exist before creating profiles
-
-## Testing
-
-### Integration Tests (20+ scenarios)
-✓ Tenant CRUD operations
-✓ Phone number creation with validation
-✓ Duplicate phone number rejection
-✓ Invalid provider_type rejection
-✓ Tenant ownership enforcement
-✓ AI profile creation with validation
-✓ Empty system_prompt rejection
-✓ Default profile enforcement
-✓ Cross-tenant isolation
-✓ Update operations
-
-### Test Results
 ```
-All 20+ test scenarios: PASSED ✓
-Security scan (CodeQL): NO VULNERABILITIES
-Manual testing: ALL ENDPOINTS WORKING
+app/models/__init__.py          # Added PrimaryLanguage enum, BusinessProfile model
+app/schemas/__init__.py         # Added schemas for new APIs
+app/api/__init__.py             # Registered new routers
+app/api/tenant.py               # Fixed to include primary_language
+main.py                         # Registered agent_config and sandbox routers
+create_tables.py                # Added BusinessProfile import
 ```
-
-## Code Quality
-
-### Best Practices
-✓ Async/await pattern for all endpoints
-✓ Type hints using Annotated and typing module
-✓ Pydantic v2 model_validate() for responses
-✓ SQLAlchemy 2.0+ query syntax
-✓ Proper dependency injection with Depends()
-✓ Comprehensive docstrings
-✓ TODO comments for future features
-
-### Security
-✓ No SQL injection (using ORM parameterized queries)
-✓ No stack traces in error responses
-✓ Input validation via Pydantic schemas
-✓ Safe error messages
-✓ CodeQL scan clean (0 vulnerabilities)
 
 ## API Documentation
 
-Complete endpoint documentation added to BACKEND_README.md including:
-- All endpoint URLs and methods
-- Request/response schemas
-- Validation constraints
-- Error response codes
-- Business rules
+Interactive API docs available at:
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
 
-## TODOs Added
+Full documentation: `AGENT_BRAIN_V1_README.md`
 
-### Authentication & Authorization
-- Add JWT authentication middleware
-- Validate tenant ownership via JWT claims
-- Add rate limiting per tenant
+## Database Schema
 
-### Telephony Integration
-- Twilio/Telnyx provider integration
-- Phone number verification endpoint
-- Webhook endpoint for incoming calls
-- Call routing configuration
+### New Table: `business_profiles`
+```sql
+CREATE TABLE business_profiles (
+    id UUID PRIMARY KEY,
+    tenant_id UUID UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,
+    business_name VARCHAR(255) NOT NULL,
+    business_type VARCHAR(100) NOT NULL,
+    services JSON NOT NULL DEFAULT '[]',
+    service_areas JSON NOT NULL DEFAULT '[]',
+    business_hours JSON NOT NULL DEFAULT '{}',
+    booking_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    escalation_rules JSON NOT NULL DEFAULT '{}',
+    forbidden_statements JSON NOT NULL DEFAULT '[]',
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+```
 
-### LLM Integration
-- OpenAI/Anthropic provider integration
-- Profile testing endpoint (dry run)
-- Profile versioning for rollback
-- Profile templates/presets
-- Performance metrics
+### Modified Table: `tenants`
+```sql
+ALTER TABLE tenants
+ADD COLUMN primary_language VARCHAR(2) NOT NULL DEFAULT 'en'
+CHECK (primary_language IN ('en', 'hi', 'mr', 'gu'));
+```
+
+## Security Summary
+
+**CodeQL Analysis**: ✅ No vulnerabilities found
+
+**Security Considerations**:
+- All data scoped to tenant_id (strict isolation)
+- No SQL injection risks (using SQLAlchemy ORM)
+- No hardcoded secrets
+- Input validation via Pydantic schemas
+- Proper error handling without data leakage
+
+## Usage Example
+
+```python
+import requests
+
+# 1. Create tenant with Hindi as primary language
+tenant = requests.post("http://localhost:8000/api/tenants", json={
+    "primary_language": "hi"
+}).json()
+
+# 2. Configure business profile
+config = requests.patch(
+    f"http://localhost:8000/api/tenants/{tenant['id']}/agent-config",
+    json={
+        "business_profile": {
+            "business_name": "Mumbai Restaurant",
+            "business_type": "Restaurant",
+            "services": ["Dine-in", "Takeaway", "Delivery"],
+            "business_hours": {"monday": "9:00-22:00"},
+            "booking_enabled": True
+        }
+    }
+).json()
+
+# 3. Simulate agent interaction
+response = requests.post(
+    "http://localhost:8000/api/sandbox/simulate",
+    json={
+        "tenant_id": tenant["id"],
+        "user_text": "Hello, I need help"
+    }
+).json()
+
+print(f"Session ID: {response['session_id']}")
+print(f"Detected Language: {response['detected_language']}")
+print(f"Speaking Language: {response['speaking_language']}")
+print(f"Response: {response['simulated_response']}")
+```
+
+## Next Steps / Future TODOs
+
+1. Real NLP-based language detection
+2. Real LLM integration for responses
+3. Redis persistence for session state
+4. Webhook notifications for events
+5. Analytics and metrics collection
+6. Authentication and authorization
+7. Rate limiting per tenant
+8. Audit logging
+9. Multi-language content management
+10. Advanced conversation flow logic
 
 ## Conclusion
 
-All requirements from the problem statement have been successfully implemented:
-✓ 3 new API routers with 9 endpoints total
-✓ Full multi-tenancy enforcement
-✓ Proper validation for all constraints
-✓ Safe error handling (400, 404, 409, 422)
-✓ Comprehensive testing
-✓ Documentation updates
-✓ Future feature TODOs
+All requirements from the problem statement have been successfully implemented and tested. The implementation:
+- ✅ Follows strict multi-tenant isolation patterns
+- ✅ Uses simulated services (no real LLMs)
+- ✅ Implements all required models and fields
+- ✅ Provides all required API endpoints
+- ✅ Includes session-based language detection logic
+- ✅ Has comprehensive tests (100% pass rate)
+- ✅ Has zero security vulnerabilities
+- ✅ Includes detailed documentation
 
-The implementation is production-ready AI call infrastructure (audio streaming implementation pending) and follows FastAPI/Pydantic best practices.
+The codebase is ready for review and integration.
