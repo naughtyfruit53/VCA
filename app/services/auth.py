@@ -18,6 +18,9 @@ from app.models import User
 logger = logging.getLogger(__name__)
 
 # JWK cache (simple in-memory cache for production should use Redis)
+# WARNING: This in-memory cache will not work correctly in multi-process
+# deployments (e.g., multiple Gunicorn workers). For production, implement
+# Redis-based caching or use a shared cache mechanism.
 _jwk_cache: Optional[Dict[str, Any]] = None
 _jwk_cache_time: Optional[datetime] = None
 _jwk_cache_ttl = timedelta(hours=1)
@@ -64,12 +67,13 @@ def verify_jwt_token(token: str) -> Dict[str, Any]:
         _fetch_jwks()
         
         # Decode and verify token using Supabase JWT secret
+        # Note: Supabase uses "authenticated" as the audience by default
+        # but we disable strict audience verification to support different Supabase configurations
         payload = jwt.decode(
             token,
             settings.supabase_jwt_secret,
             algorithms=["HS256"],
-            audience="authenticated",
-            options={"verify_aud": False}  # Supabase may use different audience
+            options={"verify_aud": False}  # Relaxed for Supabase compatibility
         )
         
         return payload
