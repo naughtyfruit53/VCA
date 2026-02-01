@@ -30,7 +30,7 @@ pydub==0.25.1
 
 # Authentication - Supabase JWT
 PyJWT==2.8.0
-cryptography==42.0.1
+cryptography==42.0.4  # Security patch: fixes NULL pointer dereference in pkcs12.serialize_key_and_certificates
 
 # Development tools
 pytest==7.4.4
