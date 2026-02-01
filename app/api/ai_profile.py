@@ -53,7 +53,7 @@ async def create_ai_profile(
     if str(tenant_id) != current_user.tenant_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
+            detail="Access denied to this tenant"
         )
     
     # Check user has owner or admin role
@@ -116,7 +116,7 @@ async def list_ai_profiles(
     if str(tenant_id) != current_user.tenant_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
+            detail="Access denied to this tenant"
         )
     
     # Validate tenant exists
@@ -168,7 +168,7 @@ async def update_ai_profile(
     if str(tenant_id) != current_user.tenant_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
+            detail="Access denied to this tenant"
         )
     
     # Check user has owner or admin role
