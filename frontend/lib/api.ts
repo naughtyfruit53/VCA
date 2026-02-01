@@ -3,9 +3,20 @@
  * 
  * Provides functions to interact with backend API endpoints.
  * All error handling uses basic alerts as specified in requirements.
+ * Includes authentication token in all requests.
  */
 
+import { supabase } from './supabase';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+/**
+ * Get the current access token from Supabase session.
+ */
+async function getAccessToken(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ?? null;
+}
 
 /**
  * Handle API errors with basic alerts.
@@ -21,10 +32,14 @@ function handleError(error: any, defaultMessage: string): void {
  */
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   try {
+    // Get access token
+    const token = await getAccessToken();
+    
     const response = await fetch(`${API_BASE_URL}${url}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` }),
         ...options?.headers,
       },
     });
