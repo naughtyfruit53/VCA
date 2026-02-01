@@ -58,6 +58,13 @@ class Settings(BaseSettings):
     ari_username: str = Field(default="asterisk", env="ARI_USERNAME")
     ari_password: str = Field(default="asterisk", env="ARI_PASSWORD")
     
+    # Supabase JWT Configuration (REQUIRED for authentication)
+    supabase_url: str = Field(..., env="SUPABASE_URL")
+    supabase_jwt_secret: str = Field(..., env="SUPABASE_JWT_SECRET")
+    
+    # Development authentication bypass (OPTIONAL - default OFF for security)
+    dev_auth_bypass: bool = Field(default=False, env="DEV_AUTH_BYPASS")
+    
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, v):
@@ -89,6 +96,22 @@ class Settings(BaseSettings):
         """Ensure OpenAI API key is not empty."""
         if not v or v.strip() == "":
             raise ValueError("OPENAI_API_KEY cannot be empty")
+        return v
+    
+    @field_validator("supabase_url")
+    @classmethod
+    def validate_supabase_url(cls, v):
+        """Ensure Supabase URL is not empty."""
+        if not v or v.strip() == "":
+            raise ValueError("SUPABASE_URL cannot be empty")
+        return v
+    
+    @field_validator("supabase_jwt_secret")
+    @classmethod
+    def validate_supabase_jwt_secret(cls, v):
+        """Ensure Supabase JWT secret is not empty."""
+        if not v or v.strip() == "":
+            raise ValueError("SUPABASE_JWT_SECRET cannot be empty")
         return v
     
     class Config:

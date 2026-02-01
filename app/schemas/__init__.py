@@ -10,7 +10,7 @@ from typing import Optional, List, Dict
 from uuid import UUID
 from pydantic import BaseModel, Field
 
-from app.models import TenantStatus, TenantPlan, CallDirection, CallStatus, AIRole, PrimaryLanguage
+from app.models import TenantStatus, TenantPlan, CallDirection, CallStatus, AIRole, PrimaryLanguage, UserRole
 
 
 # Tenant Schemas
@@ -141,6 +141,47 @@ class HealthCheckResponse(BaseModel):
     status: str = Field(..., description="Overall health status")
     config_valid: bool = Field(..., description="Whether configuration is valid")
     message: Optional[str] = Field(None, description="Additional information")
+
+
+# User Schemas
+class UserBase(BaseModel):
+    """Base user schema."""
+    email: str = Field(..., min_length=1, max_length=255)
+    display_name: Optional[str] = Field(None, max_length=255)
+    role: UserRole = Field(default=UserRole.MEMBER)
+
+
+class UserCreate(UserBase):
+    """Schema for creating a new user."""
+    supabase_user_id: UUID
+    tenant_id: UUID
+
+
+class UserUpdate(BaseModel):
+    """Schema for updating a user."""
+    display_name: Optional[str] = Field(None, max_length=255)
+    role: Optional[UserRole] = None
+
+
+class UserResponse(UserBase):
+    """Schema for user response."""
+    id: UUID
+    supabase_user_id: UUID
+    tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# Authentication Schemas
+class CurrentUserResponse(BaseModel):
+    """Schema for current user response."""
+    user_id: str
+    tenant_id: str
+    role: str
+    email: str
 
 
 # BusinessProfile Schemas

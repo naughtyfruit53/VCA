@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from app.config.database import get_db
 from app.models import Tenant, PhoneNumber
 from app.schemas import PhoneNumberCreate, PhoneNumberUpdate, PhoneNumberResponse
+from app.services.auth import CurrentUser, get_current_user
 
 
 router = APIRouter(tags=["phone-numbers"])
@@ -28,7 +29,8 @@ router = APIRouter(tags=["phone-numbers"])
 async def create_phone_number(
     tenant_id: UUID,
     phone_data: PhoneNumberCreate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)]
 ) -> PhoneNumberResponse:
     """
     Attach a phone number to a tenant.
@@ -39,15 +41,31 @@ async def create_phone_number(
         tenant_id: Tenant UUID
         phone_data: Phone number data
         db: Database session
+        current_user: Current authenticated user
         
     Returns:
         PhoneNumberResponse: Created phone number details
         
     Raises:
+        HTTPException: 403 if tenant_id doesn't match user's tenant or user lacks permissions
         HTTPException: 404 if tenant not found
         HTTPException: 409 if phone number already exists
         HTTPException: 400 if provider_type is not "generic"
     """
+    # Verify tenant_id matches current user's tenant
+    if current_user.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this tenant"
+        )
+    
+    # Verify user has owner or admin role
+    if current_user.role not in ["owner", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only owner or admin can create phone numbers"
+        )
+    
     # Validate tenant exists
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
@@ -88,7 +106,8 @@ async def create_phone_number(
 @router.get("/tenants/{tenant_id}/phone-numbers", response_model=List[PhoneNumberResponse])
 async def list_phone_numbers(
     tenant_id: UUID,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)]
 ) -> List[PhoneNumberResponse]:
     """
     List all phone numbers for a tenant.
@@ -96,13 +115,22 @@ async def list_phone_numbers(
     Args:
         tenant_id: Tenant UUID
         db: Database session
+        current_user: Current authenticated user
         
     Returns:
         List[PhoneNumberResponse]: List of phone numbers
         
     Raises:
+        HTTPException: 403 if tenant_id doesn't match user's tenant
         HTTPException: 404 if tenant not found
     """
+    # Verify tenant_id matches current user's tenant
+    if current_user.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this tenant"
+        )
+    
     # Validate tenant exists
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
@@ -127,7 +155,8 @@ async def update_phone_number(
     tenant_id: UUID,
     phone_number_id: UUID,
     phone_update: PhoneNumberUpdate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)]
 ) -> PhoneNumberResponse:
     """
     Update phone number (activate/deactivate).
@@ -139,14 +168,30 @@ async def update_phone_number(
         phone_number_id: Phone number UUID
         phone_update: Fields to update
         db: Database session
+        current_user: Current authenticated user
         
     Returns:
         PhoneNumberResponse: Updated phone number details
         
     Raises:
+        HTTPException: 403 if tenant_id doesn't match user's tenant or user lacks permissions
         HTTPException: 404 if phone number not found or doesn't belong to tenant
         HTTPException: 400 if provider_type is not "generic"
     """
+    # Verify tenant_id matches current user's tenant
+    if current_user.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this tenant"
+        )
+    
+    # Verify user has owner or admin role
+    if current_user.role not in ["owner", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only owner or admin can update phone numbers"
+        )
+    
     # Get phone number and enforce tenant ownership
     phone_number = db.query(PhoneNumber).filter(
         PhoneNumber.id == phone_number_id,
