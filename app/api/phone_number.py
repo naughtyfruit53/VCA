@@ -53,7 +53,7 @@ async def create_phone_number(
         HTTPException: 400 if provider_type is not "generic"
     """
     # Verify tenant_id matches current user's tenant
-    if current_user.tenant_id != tenant_id:
+    if str(tenant_id) != current_user.tenant_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this tenant"
@@ -125,7 +125,7 @@ async def list_phone_numbers(
         HTTPException: 404 if tenant not found
     """
     # Verify tenant_id matches current user's tenant
-    if current_user.tenant_id != tenant_id:
+    if str(tenant_id) != current_user.tenant_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this tenant"
@@ -179,7 +179,7 @@ async def update_phone_number(
         HTTPException: 400 if provider_type is not "generic"
     """
     # Verify tenant_id matches current user's tenant
-    if current_user.tenant_id != tenant_id:
+    if str(tenant_id) != current_user.tenant_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this tenant"
