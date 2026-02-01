@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.models import Tenant, BusinessProfile
+from app.services.auth import CurrentUser, get_current_user
 from app.schemas import (
     AgentConfigResponse,
     AgentConfigUpdate,
@@ -31,7 +32,8 @@ router = APIRouter(tags=["agent-config"])
 @router.get("/tenants/{tenant_id}/agent-config", response_model=AgentConfigResponse)
 async def get_agent_config(
     tenant_id: UUID,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)]
 ) -> AgentConfigResponse:
     """
     Get agent configuration for a tenant.
@@ -41,13 +43,22 @@ async def get_agent_config(
     Args:
         tenant_id: Tenant UUID
         db: Database session
+        current_user: Authenticated user
         
     Returns:
         AgentConfigResponse: Agent configuration including primary_language and business_profile
         
     Raises:
+        HTTPException: 403 if tenant_id doesn't match user's tenant
         HTTPException: 404 if tenant not found
     """
+    # Verify tenant access
+    if str(tenant_id) != current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: tenant_id mismatch"
+        )
+    
     # Fetch tenant
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     
@@ -73,7 +84,8 @@ async def get_agent_config(
 async def update_agent_config(
     tenant_id: UUID,
     config_update: AgentConfigUpdate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)]
 ) -> AgentConfigResponse:
     """
     Update agent configuration for a tenant.
@@ -85,13 +97,29 @@ async def update_agent_config(
         tenant_id: Tenant UUID
         config_update: Configuration updates
         db: Database session
+        current_user: Authenticated user
         
     Returns:
         AgentConfigResponse: Updated agent configuration
         
     Raises:
+        HTTPException: 403 if tenant_id doesn't match user's tenant or insufficient permissions
         HTTPException: 404 if tenant not found
     """
+    # Verify tenant access
+    if str(tenant_id) != current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: tenant_id mismatch"
+        )
+    
+    # Verify user has permission to update
+    if current_user.role not in ["owner", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: owner or admin role required"
+        )
+    
     # Fetch tenant
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     
