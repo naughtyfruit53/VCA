@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 
+const REDIRECT_DELAY_MS = 2000;
+
 export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,10 +31,10 @@ export default function SignupPage() {
     try {
       await signUp(email, password);
       setSuccess(true);
-      // Redirect to login after 2 seconds
+      // Redirect to login after delay
       setTimeout(() => {
         router.push('/login');
-      }, 2000);
+      }, REDIRECT_DELAY_MS);
     } catch {
       // Error is handled by AuthContext
     } finally {
