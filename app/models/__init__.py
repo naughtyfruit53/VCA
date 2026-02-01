@@ -45,6 +45,13 @@ class PrimaryLanguage(str, PyEnum):
     GU = "gu"
 
 
+class UserRole(str, PyEnum):
+    """User role within a tenant."""
+    OWNER = "owner"
+    ADMIN = "admin"
+    MEMBER = "member"
+
+
 class CallDirection(str, PyEnum):
     """Call direction."""
     INBOUND = "inbound"
@@ -68,6 +75,35 @@ class AIRole(str, PyEnum):
 
 
 # Models
+class User(Base):
+    """
+    User model - represents authenticated users.
+    
+    STRICT TENANT ISOLATION: Each user belongs to exactly one tenant.
+    Users authenticate via Supabase and are mapped to tenants.
+    """
+    __tablename__ = "users"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    supabase_user_id = Column(UUID(as_uuid=True), nullable=False, unique=True)
+    email = Column(String(255), nullable=False, unique=True)
+    display_name = Column(String(255), nullable=True)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    role = Column(Enum(UserRole), nullable=False, default=UserRole.MEMBER)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # Relationships
+    tenant = relationship("Tenant", back_populates="users")
+    
+    # Indexes
+    __table_args__ = (
+        Index("idx_user_supabase_user_id", "supabase_user_id"),
+        Index("idx_user_email", "email"),
+        Index("idx_user_tenant_id", "tenant_id"),
+    )
+
+
 class Tenant(Base):
     """
     Tenant model - represents a customer organization.
@@ -89,6 +125,7 @@ class Tenant(Base):
     calls = relationship("Call", back_populates="tenant", cascade="all, delete-orphan")
     ai_profiles = relationship("AIProfile", back_populates="tenant", cascade="all, delete-orphan")
     business_profile = relationship("BusinessProfile", back_populates="tenant", uselist=False, cascade="all, delete-orphan")
+    users = relationship("User", back_populates="tenant", cascade="all, delete-orphan")
     
     # Indexes
     __table_args__ = (

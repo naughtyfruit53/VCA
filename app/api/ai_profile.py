@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.models import Tenant, AIProfile
 from app.schemas import AIProfileCreate, AIProfileUpdate, AIProfileResponse
+from app.services.auth import CurrentUser, get_current_user
 
 
 router = APIRouter(tags=["ai-profiles"])
@@ -27,7 +28,8 @@ router = APIRouter(tags=["ai-profiles"])
 async def create_ai_profile(
     tenant_id: UUID,
     profile_data: AIProfileCreate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)]
 ) -> AIProfileResponse:
     """
     Create an AI profile for a tenant.
@@ -47,6 +49,20 @@ async def create_ai_profile(
     Raises:
         HTTPException: 404 if tenant not found
     """
+    # Verify tenant_id matches current user's tenant
+    if str(tenant_id) != current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this tenant"
+        )
+    
+    # Check user has owner or admin role
+    if current_user.role not in ["owner", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only owner or admin can create AI profiles"
+        )
+    
     # Validate tenant exists
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
@@ -80,7 +96,8 @@ async def create_ai_profile(
 @router.get("/tenants/{tenant_id}/ai-profiles", response_model=List[AIProfileResponse])
 async def list_ai_profiles(
     tenant_id: UUID,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)]
 ) -> List[AIProfileResponse]:
     """
     List all AI profiles for a tenant.
@@ -95,6 +112,13 @@ async def list_ai_profiles(
     Raises:
         HTTPException: 404 if tenant not found
     """
+    # Verify tenant_id matches current user's tenant
+    if str(tenant_id) != current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this tenant"
+        )
+    
     # Validate tenant exists
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
@@ -119,7 +143,8 @@ async def update_ai_profile(
     tenant_id: UUID,
     ai_profile_id: UUID,
     profile_update: AIProfileUpdate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)]
 ) -> AIProfileResponse:
     """
     Update an AI profile.
@@ -139,6 +164,20 @@ async def update_ai_profile(
     Raises:
         HTTPException: 404 if profile not found or doesn't belong to tenant
     """
+    # Verify tenant_id matches current user's tenant
+    if str(tenant_id) != current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this tenant"
+        )
+    
+    # Check user has owner or admin role
+    if current_user.role not in ["owner", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only owner or admin can update AI profiles"
+        )
+    
     # Get AI profile and enforce tenant ownership
     profile = db.query(AIProfile).filter(
         AIProfile.id == ai_profile_id,

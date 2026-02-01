@@ -1,8 +1,14 @@
+'use client';
+
 import Link from 'next/link';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import Header from '@/components/Header';
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <ProtectedRoute>
+      <Header />
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="max-w-4xl w-full">
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-gray-900 mb-4">
@@ -70,5 +76,6 @@ export default function Home() {
         </div>
       </div>
     </div>
+    </ProtectedRoute>
   );
 }
