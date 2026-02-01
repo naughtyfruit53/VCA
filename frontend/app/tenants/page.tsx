@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createTenant, type Tenant, type TenantCreate } from '@/lib/api';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import Header from '@/components/Header';
 
 export default function TenantsPage() {
   const router = useRouter();
@@ -42,7 +44,9 @@ export default function TenantsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <ProtectedRoute>
+      <Header />
+      <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-6">
@@ -132,5 +136,6 @@ export default function TenantsPage() {
         </div>
       </div>
     </div>
+    </ProtectedRoute>
   );
 }

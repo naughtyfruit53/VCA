@@ -17,6 +17,8 @@ import {
 } from '@/lib/api';
 import SandboxTester from '@/components/SandboxTester';
 import GoLiveToggle from '@/components/GoLiveToggle';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import Header from '@/components/Header';
 
 export default function TenantDetailPage() {
   const params = useParams();
@@ -112,19 +114,31 @@ export default function TenantDetailPage() {
   const defaultProfileCount = aiProfiles.filter(p => p.is_default).length;
 
   if (loading) {
-    return <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
-      <p>Loading...</p>
-    </div>;
+    return (
+      <ProtectedRoute>
+        <Header />
+        <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+          <p>Loading...</p>
+        </div>
+      </ProtectedRoute>
+    );
   }
 
   if (!tenant) {
-    return <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
-      <p>Tenant not found</p>
-    </div>;
+    return (
+      <ProtectedRoute>
+        <Header />
+        <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+          <p>Tenant not found</p>
+        </div>
+      </ProtectedRoute>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <ProtectedRoute>
+      <Header />
+      <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="bg-white rounded-lg shadow p-6">
@@ -344,5 +358,6 @@ export default function TenantDetailPage() {
         <SandboxTester tenantId={tenantId} />
       </div>
     </div>
+    </ProtectedRoute>
   );
 }
